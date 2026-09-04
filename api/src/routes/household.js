@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { authRequired } from '../auth.js';
+import { GLOBAL_DICTIONARY } from '../data/globalDictionary.js';
 
 const router = Router();
 
@@ -82,6 +83,24 @@ router.post('/', authRequired, async (req, res) => {
         `insert into categories (household_id, name, icon, color, transaction_type, is_default)
          values ($1, $2, $3, $4, 'expense', true)`,
         [household.id, cname, icon, color]
+      );
+    }
+
+    // Seed the global default item dictionary (mapped to expense categories by name)
+    const { rows: categoryRows } = await client.query(
+      `select id, name from categories where household_id = $1`,
+      [household.id]
+    );
+    const categoryIdByName = {};
+    for (const c of categoryRows) categoryIdByName[c.name] = c.id;
+    for (const entry of GLOBAL_DICTIONARY) {
+      const categoryId = categoryIdByName[entry.category];
+      if (!categoryId) continue;
+      await client.query(
+        `insert into item_dictionary (household_id, keyword, normalized_keyword, category_id, source, confidence)
+         values ($1, $2, $2, $3, 'default', 0.5)
+         on conflict (household_id, keyword) do nothing`,
+        [household.id, entry.keyword, categoryId]
       );
     }
 

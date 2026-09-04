@@ -5,6 +5,9 @@ import householdRoutes from './routes/household.js';
 import accountRoutes from './routes/accounts.js';
 import categoryRoutes from './routes/categories.js';
 import transactionRoutes from './routes/transactions.js';
+import dictionaryRoutes from './routes/dictionary.js';
+import categorizeRoutes from './routes/categorize.js';
+import receiptRoutes from './routes/receipt.js';
 
 const app = express();
 app.use(cors());
@@ -17,6 +20,9 @@ app.use('/api/household', householdRoutes);
 app.use('/api/accounts', accountRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/dictionary', dictionaryRoutes);
+app.use('/api/categorize', categorizeRoutes);
+app.use('/api/receipt', receiptRoutes);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

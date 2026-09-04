@@ -153,3 +153,35 @@ export interface NetWorthSnapshot {
   } | null;
   created_at: string;
 }
+
+export interface ParsedLineItem {
+  raw_text: string;
+  normalized_text: string | null;
+  amount: number;
+  category_id: string | null;
+  category_name: string | null;
+  category_color: string | null;
+  categorization_source: 'exact' | 'fuzzy' | 'fallback' | 'manual' | null;
+  confidence: number;
+}
+
+export interface ReceiptReconciliation {
+  line_items_count: number;
+  line_items_sum: number;
+  printed_total: number | null;
+  is_reconciled: boolean | null;
+  discrepancy: number | null;
+}
+
+export interface ParsedReceipt {
+  merchant: string | null;
+  txn_date: string;
+  total: number | null;
+  line_items: ParsedLineItem[];
+  receipt_fingerprint: string | null;
+  reconciliation: ReceiptReconciliation;
+  duplicate_check: {
+    is_duplicate: boolean;
+    existing_transaction_id: string | null;
+  };
+}

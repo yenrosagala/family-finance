@@ -16,15 +16,15 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 
 ## Phase 2 — Receipt Scanning
 
-- ⬜ Camera capture + ML Kit OCR integration
-- ⬜ Receipt parsing (merchant, date, total, line items)
-- ⬜ Global default item dictionary (bundled JSON, common Indonesian retail items)
-- ⬜ Household item dictionary + exact/fuzzy matching
-- ⬜ Confirm screen (editable categories, confidence indicators)
-- ⬜ Auto-dedupe exact consecutive duplicate OCR lines
-- ⬜ Reconciliation check (line items sum vs printed total)
-- ⬜ Duplicate-receipt fingerprint check + warning
-- ⬜ Correction feedback loop (updates item_dictionary confidence/counts)
+- 🟨 Camera capture + ML Kit OCR integration (adapter ready; camera/MK wiring pending device testing)
+- ✅ Receipt parsing (merchant, date, total, line items) — backend `POST /api/receipt/parse`
+- ✅ Global default item dictionary (bundled JSON, common Indonesian retail items) — seeded into every household
+- ✅ Household item dictionary + exact/fuzzy matching — backend `/api/categorize` + `categorizationService.ts`
+- ✅ Confirm screen (editable categories, confidence indicators) — `ConfirmReceiptScreen.tsx`, no auto-save
+- ✅ Auto-dedupe exact consecutive duplicate OCR lines / token lines
+- ✅ Reconciliation check (line items sum vs printed total)
+- ✅ Duplicate-receipt fingerprint check + warning
+- ✅ Correction feedback loop (updates item_dictionary confidence/counts) — `/api/categorize/correction`
 - ⬜ Receipt image storage (Supabase Storage, household-scoped)
 
 ## Phase 3 — Budgeting

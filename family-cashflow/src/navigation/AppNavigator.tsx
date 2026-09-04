@@ -11,6 +11,7 @@ import AddTransactionScreen from '../screens/transactions/AddTransactionScreen';
 import MoreScreen from '../screens/more/MoreScreen';
 import ManageAccountsScreen from '../screens/more/ManageAccountsScreen';
 import ManageCategoriesScreen from '../screens/more/ManageCategoriesScreen';
+import ScanScreen from '../screens/receipts/ScanScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -47,7 +48,7 @@ function MainTabs({ onSignOut }: MainTabsProps) {
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen name="Transactions" component={TransactionsScreen} />
       <Tab.Screen name="Add" component={AddTransactionScreen} options={{ tabBarLabel: 'Add' }} />
-      <Tab.Screen name="Scan" component={DashboardScreen} options={{ tabBarLabel: 'Scan' }} />
+      <Tab.Screen name="Scan" component={ScanScreen} options={{ tabBarLabel: 'Scan' }} />
       <Tab.Screen name="More">
         {({ navigation }) => <MoreScreen navigation={navigation} onSignOut={onSignOut} />}
       </Tab.Screen>
