@@ -1,8 +1,7 @@
-import Constants from 'expo-constants';
-
-const ENV = {
-  supabaseUrl: Constants.expoConfig?.extra?.supabaseUrl ?? process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
-  supabaseAnonKey: Constants.expoConfig?.extra?.supabaseAnonKey ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
+const config = {
+  // The Express API server URL the app talks to.
+  // When running on a physical device, replace localhost with your LAN IP.
+  apiUrl: process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000',
 };
 
-export default ENV;
+export default config;

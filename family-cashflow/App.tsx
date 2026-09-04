@@ -1,46 +1,37 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import AuthScreen from './src/screens/auth/AuthScreen';
 import HouseholdOnboardingScreen from './src/screens/auth/HouseholdOnboardingScreen';
-import supabase from './src/services/supabase';
-import { getUserHousehold } from './src/services/authService';
+import { getUserHousehold, getCurrentUser, signOut } from './src/services/authService';
 import { Colors } from './src/core/theme';
-import { Session } from '@supabase/supabase-js';
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<{ id: string; email: string; display_name: string } | null>(null);
   const [hasHousehold, setHasHousehold] = useState(false);
-  const [checkingHousehold, setCheckingHousehold] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (!session) {
-        setHasHousehold(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+  const checkAuth = useCallback(async () => {
+    const current = await getCurrentUser();
+    setUser(current);
+    if (current) {
+      const household = await getUserHousehold().catch(() => null);
+      setHasHousehold(!!household);
+    } else {
+      setHasHousehold(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (session && !checkingHousehold) {
-      setCheckingHousehold(true);
-      getUserHousehold()
-        .then((household) => setHasHousehold(!!household))
-        .finally(() => setCheckingHousehold(false));
-    }
-  }, [session]);
+    checkAuth().finally(() => setLoading(false));
+  }, [checkAuth]);
+
+  const handleAuthSuccess = async () => {
+    setLoading(true);
+    await checkAuth();
+    setLoading(false);
+  };
 
   if (loading) {
     return (
@@ -53,12 +44,12 @@ export default function App() {
   return (
     <>
       <StatusBar style="auto" />
-      {!session ? (
-        <AuthScreen onAuthSuccess={() => {}} />
+      {!user ? (
+        <AuthScreen onAuthSuccess={handleAuthSuccess} />
       ) : !hasHousehold ? (
-        <HouseholdOnboardingScreen onComplete={() => getUserHousehold().then((h) => setHasHousehold(!!h))} />
+        <HouseholdOnboardingScreen onComplete={handleAuthSuccess} />
       ) : (
-        <AppNavigator />
+        <AppNavigator onSignOut={async () => { await signOut(); await handleAuthSuccess(); }} />
       )}
     </>
   );
