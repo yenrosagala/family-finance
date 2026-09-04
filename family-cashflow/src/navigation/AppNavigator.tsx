@@ -11,6 +11,7 @@ import AddTransactionScreen from '../screens/transactions/AddTransactionScreen';
 import MoreScreen from '../screens/more/MoreScreen';
 import ManageAccountsScreen from '../screens/more/ManageAccountsScreen';
 import ManageCategoriesScreen from '../screens/more/ManageCategoriesScreen';
+import HouseholdMembersScreen from '../screens/more/HouseholdMembersScreen';
 import ScanScreen from '../screens/receipts/ScanScreen';
 
 const Stack = createNativeStackNavigator();
@@ -86,6 +87,11 @@ export default function AppNavigator({ onSignOut }: AppNavigatorProps) {
           name="Categories"
           component={ManageCategoriesScreen}
           options={{ headerShown: true, title: 'Categories' }}
+        />
+        <Stack.Screen
+          name="Household"
+          component={HouseholdMembersScreen}
+          options={{ headerShown: true, title: 'Household' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

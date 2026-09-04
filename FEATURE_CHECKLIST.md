@@ -5,7 +5,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 ## Phase 1 — MVP (core loop working)
 
 - 🟨 Auth (sign up / login via Supabase Auth)
-- 🟨 Household creation + invite code join flow
+- 🟨 Household creation + invite code join flow (join works; member management UI added via Household screen under More)
 - ✅ Accounts CRUD (cash/bank/e-wallet/credit card) with opening balance + Manage Accounts screen
 - ✅ Categories CRUD + default category seed set + Manage Categories screen
 - ✅ Manual transaction entry (amount-first form), types: income/expense

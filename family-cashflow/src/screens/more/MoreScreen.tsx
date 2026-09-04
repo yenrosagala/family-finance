@@ -9,6 +9,7 @@ type MoreScreenProps = {
 
 export default function MoreScreen({ onSignOut, navigation }: MoreScreenProps) {
   const items = [
+    { key: 'Household', title: 'Household', subtitle: 'Invite code & family members', icon: '\uD83C\uDFE0' },
     { key: 'Accounts', title: 'Accounts', subtitle: 'Manage cash, bank, e-wallet, cards', icon: '\uD83D\uDCB3' },
     { key: 'Categories', title: 'Categories', subtitle: 'Add income & expense categories', icon: '\uD83C\uDF5F' },
   ];
