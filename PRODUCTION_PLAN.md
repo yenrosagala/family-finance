@@ -14,17 +14,19 @@ This is a family-scale app, not a commercial launch — "production" means "reli
 
 ### Stage 1 — Private Alpha (you + one other family member) — CURRENT
 - ✅ Phase 1 (MVP): auth (custom JWT + `app_users`), household create/join, accounts (with opening balance), categories, manual transaction entry, dashboard (net cashflow + donut), balance-sync trigger, RLS written.
-- 🟨 Phase 2 (receipt scanning): parsing, dictionary + fuzzy categorization, confirm screen, dedupe/reconciliation/fingerprint, correction loop — all built and verified server-side. **Camera capture + on-device OCR from a real device is the remaining piece** (sandbox can't test it).
+- 🟨 Phase 2 (receipt scanning): parsing, dictionary + fuzzy categorization + **Naive Bayes ML classifier** (`api/src/ml/classifier.js`), confirm screen, dedupe/reconciliation/fingerprint, correction loop — all built and verified server-side. **Camera capture + on-device OCR from a real device is the remaining piece** (sandbox can't test it).
 - Goal: replace whatever ad-hoc tracking (notes app, spreadsheet, memory) the family currently uses, for expense logging only.
 - Success signal: both of you are logging real transactions daily without friction complaints.
 - **Not yet met:** this stage needs 2+ weeks of real daily use and the cross-account/real-receipt verification items in `PRODUCTION_READY_CHECKLIST.md` before being called done.
 
-### Stage 2 — Budgeting Rollout
-- Ship Phase 3.
+### Stage 2 — Budgeting Rollout (core started)
+- 🟨 Phase 3: budget CRUD + progress bars + dashboard health strip built (backend `/api/budgets` + `BudgetsScreen`). **Remaining in Phase 3:** inline budget hint on transaction entry, threshold notifications (80%/100% job), suggested budgets.
 - Goal: budgets feel like a helpful nudge, not nagging — tune notification thresholds based on real reaction.
 
-### Stage 3 — Full Financial Picture
-- Ship Phase 4 (transfers/saving/investing) + Phase 5 (net worth/reports).
+### Stage 3 — Full Financial Picture (Phase 4 started)
+- 🟨 Phase 4: transaction type picker, internal/external transfers (to_person), saving goals + investments CRUD/contribution/mark-to-market, dashboard saved-&-invested section — built and verified (backend `/api/saving-goals`, `/api/investments`; `SavingGoalsScreen`, `InvestmentsScreen`).
+- ✅ Phase 3 budgeting done except threshold notifications (needs deploy + device push).
+- ⬜ Phase 5 (net worth/reports) remains.
 - Goal: the app becomes the single source of truth for "what's our financial state," replacing any separate net-worth spreadsheet.
 
 ### Stage 4 — Whole-Household Rollout

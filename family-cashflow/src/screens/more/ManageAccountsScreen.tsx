@@ -10,6 +10,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
+import { formatMoney } from '../../core/format';
 import { getAccounts, createAccount, deleteAccount } from '../../services/transactionService';
 import { Account } from '../../models';
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, AccountType } from '../../constants/categories';
@@ -130,7 +131,7 @@ export default function ManageAccountsScreen() {
             </View>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Combined balance</Text>
-              <Text style={styles.totalAmount}>{total.toLocaleString()}</Text>
+              <Text style={styles.totalAmount}>{formatMoney(total)}</Text>
             </View>
             {accounts.length === 0 && (
               <Text style={styles.empty}>No accounts yet. Add your first one above.</Text>
@@ -145,7 +146,7 @@ export default function ManageAccountsScreen() {
                 {ACCOUNT_TYPE_LABELS[item.type as AccountType] ?? item.type}
               </Text>
             </View>
-            <Text style={styles.rowBalance}>{item.balance.toLocaleString()}</Text>
+            <Text style={styles.rowBalance}>{formatMoney(item.balance)}</Text>
             <TouchableOpacity onPress={() => handleDelete(item)} style={styles.deleteBtn}>
               <Text style={styles.deleteText}>✕</Text>
             </TouchableOpacity>

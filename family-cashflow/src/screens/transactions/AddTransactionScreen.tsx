@@ -10,7 +10,11 @@ import {
   Platform,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
+import { formatMoney } from '../../core/format';
 import { createTransaction, getAccounts, getCategories } from '../../services/transactionService';
+import { getBudgets, BudgetProgress } from '../../services/budgetService';
+import { getSavingGoals, SavingGoalProgress } from '../../services/savingGoalService';
+import { getInvestments, InvestmentProgress } from '../../services/investmentService';
 import { Account, Category } from '../../models';
 import { TRANSACTION_TYPES, TRANSACTION_TYPE_LABELS, TransactionType } from '../../constants/categories';
 
@@ -28,6 +32,12 @@ export default function AddTransactionScreen({ navigation }: AddTransactionScree
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [savingGoals, setSavingGoals] = useState<SavingGoalProgress[]>([]);
+  const [investments, setInvestments] = useState<InvestmentProgress[]>([]);
+  const [budgets, setBudgets] = useState<BudgetProgress[]>([]);
+  const [savingGoalId, setSavingGoalId] = useState<string | null>(null);
+  const [investmentId, setInvestmentId] = useState<string | null>(null);
+  const [toPerson, setToPerson] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -40,8 +50,16 @@ export default function AddTransactionScreen({ navigation }: AddTransactionScree
 
   const loadData = async () => {
     try {
-      const accountsData = await getAccounts();
+      const [accountsData, savingGoalsData, investmentsData, budgetData] = await Promise.all([
+        getAccounts(),
+        getSavingGoals(),
+        getInvestments(),
+        getBudgets(),
+      ]);
       setAccounts(accountsData);
+      setSavingGoals(savingGoalsData);
+      setInvestments(investmentsData);
+      setBudgets(budgetData.budgets);
       if (accountsData.length > 0) {
         setFromAccountId(accountsData[0].id);
         setToAccountId(accountsData[0].id);
@@ -66,6 +84,14 @@ export default function AddTransactionScreen({ navigation }: AddTransactionScree
       Alert.alert('Error', 'Please enter a valid amount');
       return;
     }
+    if (type === 'saving' && !savingGoalId) {
+      Alert.alert('Error', 'Choose a saving goal');
+      return;
+    }
+    if (type === 'investment' && !investmentId) {
+      Alert.alert('Error', 'Choose an investment');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -77,9 +103,9 @@ export default function AddTransactionScreen({ navigation }: AddTransactionScree
         category_id: categoryId,
         from_account_id: fromAccountId,
         to_account_id: toAccountId,
-        to_person: null,
-        investment_id: null,
-        saving_goal_id: null,
+        to_person: (type === 'transfer_out' || type === 'transfer_in') ? (toPerson || null) : null,
+        investment_id: type === 'investment' ? investmentId : null,
+        saving_goal_id: type === 'saving' ? savingGoalId : null,
         merchant_name: null,
         receipt_image_url: null,
         categorization_source: 'manual',
@@ -99,6 +125,13 @@ export default function AddTransactionScreen({ navigation }: AddTransactionScree
   const showFromAccount = ['expense', 'transfer', 'transfer_out', 'investment', 'saving'].includes(type);
   const showToAccount = ['income', 'transfer', 'transfer_in', 'saving'].includes(type);
   const showCategory = ['income', 'expense'].includes(type);
+  const showSavingGoal = type === 'saving';
+  const showInvestment = type === 'investment';
+  const showToPerson = type === 'transfer_out' || type === 'transfer_in';
+
+  const activeBudget = type === 'expense' && categoryId
+    ? budgets.find((b) => b.category_id === categoryId)
+    : null;
 
   return (
     <ScrollView style={styles.container}>
@@ -201,6 +234,81 @@ export default function AddTransactionScreen({ navigation }: AddTransactionScree
               ))}
             </ScrollView>
           </View>
+        )}
+
+        {activeBudget && (
+          <View
+            style={[
+              styles.budgetHint,
+              activeBudget.over_budget && { backgroundColor: '#FEF2F2', borderColor: Colors.expense },
+            ]}
+          >
+            <Text style={[styles.budgetHintText, { color: activeBudget.over_budget ? Colors.expense : Colors.textSecondary }]}>
+              {activeBudget.over_budget
+                ? `Already over your ${activeBudget.category_name} budget by ${formatMoney(
+                    activeBudget.spent - activeBudget.monthly_limit
+                  )} this month`
+                : `Budget: ${formatMoney(activeBudget.spent)} of ${formatMoney(activeBudget.monthly_limit)} used (${Math.round(
+                    activeBudget.progress * 100
+                  )}%)`}
+            </Text>
+          </View>
+        )}
+
+        {showSavingGoal && (
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Saving Goal</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {savingGoals.length === 0 ? (
+                <Text style={styles.mutedHint}>No saving goals yet. Add one under More → Saving Goals.</Text>
+              ) : (
+                savingGoals.map((goal) => (
+                  <TouchableOpacity
+                    key={goal.id}
+                    style={[styles.chip, savingGoalId === goal.id && styles.chipActive]}
+                    onPress={() => setSavingGoalId(goal.id)}
+                  >
+                    <Text style={[styles.chipText, savingGoalId === goal.id && styles.chipTextActive]}>
+                      {goal.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        )}
+
+        {showInvestment && (
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Investment</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {investments.length === 0 ? (
+                <Text style={styles.mutedHint}>No investments yet. Add one under More → Investments.</Text>
+              ) : (
+                investments.map((inv) => (
+                  <TouchableOpacity
+                    key={inv.id}
+                    style={[styles.chip, investmentId === inv.id && styles.chipActive]}
+                    onPress={() => setInvestmentId(inv.id)}
+                  >
+                    <Text style={[styles.chipText, investmentId === inv.id && styles.chipTextActive]}>
+                      {inv.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        )}
+
+        {showToPerson && (
+          <TextInput
+            style={styles.input}
+            placeholder={type === 'transfer_out' ? 'To person (e.g. Mom)' : 'From person (e.g. Dad)'}
+            placeholderTextColor={Colors.textMuted}
+            value={toPerson}
+            onChangeText={setToPerson}
+          />
         )}
 
         <TouchableOpacity
@@ -315,6 +423,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: Spacing.md,
   },
+  budgetHint: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+  },
+  budgetHintText: { fontSize: FontSize.sm, fontWeight: '500' },
+  mutedHint: { fontSize: FontSize.sm, color: Colors.textMuted, paddingVertical: Spacing.sm },
   saveButtonDisabled: {
     opacity: 0.6,
   },

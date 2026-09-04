@@ -8,27 +8,33 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
+import { formatMoney } from '../../core/format';
 import { getMonthlySummary, getAccounts, getCategoryBreakdown, CategoryBreakdownItem } from '../../services/transactionService';
+import { getBudgets, BudgetProgress } from '../../services/budgetService';
 import { Account } from '../../models';
 import CategoryDonut from '../../widgets/CategoryDonut';
 
 export default function DashboardScreen() {
-  const [summary, setSummary] = useState({ income: 0, expenses: 0, netCashflow: 0 });
+  const [summary, setSummary] = useState({ income: 0, expenses: 0, netCashflow: 0, saved: 0, invested: 0 });
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [expenseBreakdown, setExpenseBreakdown] = useState<CategoryBreakdownItem[]>([]);
+  const [budgets, setBudgets] = useState<BudgetProgress[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = async () => {
     try {
       const now = new Date();
-      const [monthlySummary, accountsData, breakdown] = await Promise.all([
-        getMonthlySummary(now.getFullYear(), now.getMonth() + 1),
+      const month = { year: now.getFullYear(), month: now.getMonth() + 1 };
+      const [monthlySummary, accountsData, breakdown, budgetData] = await Promise.all([
+        getMonthlySummary(month.year, month.month),
         getAccounts(),
-        getCategoryBreakdown(now.getFullYear(), now.getMonth() + 1, 'expense'),
+        getCategoryBreakdown(month.year, month.month, 'expense'),
+        getBudgets(),
       ]);
       setSummary(monthlySummary);
       setAccounts(accountsData);
       setExpenseBreakdown(breakdown);
+      setBudgets(budgetData.budgets);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     }
@@ -45,6 +51,9 @@ export default function DashboardScreen() {
   };
 
   const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+
+  const overCount = budgets.filter((b) => b.over_budget).length;
+  const warningCount = budgets.filter((b) => !b.over_budget && b.progress >= 0.8).length;
 
   return (
     <ScrollView
@@ -66,7 +75,7 @@ export default function DashboardScreen() {
             { color: summary.netCashflow >= 0 ? Colors.income : Colors.expense },
           ]}
         >
-          {summary.netCashflow >= 0 ? '+' : ''}{summary.netCashflow.toLocaleString()}
+          {summary.netCashflow >= 0 ? '+' : ''}{formatMoney(summary.netCashflow)}
         </Text>
       </View>
 
@@ -74,16 +83,46 @@ export default function DashboardScreen() {
         <View style={[styles.summaryBox, { backgroundColor: '#ECFDF5' }]}>
           <Text style={styles.boxLabel}>Income</Text>
           <Text style={[styles.boxAmount, { color: Colors.income }]}>
-            +{summary.income.toLocaleString()}
+            +{formatMoney(summary.income)}
           </Text>
         </View>
         <View style={[styles.summaryBox, { backgroundColor: '#FEF2F2' }]}>
           <Text style={styles.boxLabel}>Expenses</Text>
           <Text style={[styles.boxAmount, { color: Colors.expense }]}>
-            -{summary.expenses.toLocaleString()}
+            -{formatMoney(summary.expenses)}
           </Text>
         </View>
       </View>
+
+      <View style={[styles.rollupRow, { marginTop: Spacing.md }]}>
+        <View style={[styles.summaryBox, { backgroundColor: '#F3E8FF' }]}>
+          <Text style={styles.boxLabel}>Saved</Text>
+          <Text style={[styles.boxAmount, { color: Colors.saving }]}>
+            {formatMoney(summary.saved)}
+          </Text>
+        </View>
+        <View style={[styles.summaryBox, { backgroundColor: '#FFF7ED' }]}>
+          <Text style={styles.boxLabel}>Invested</Text>
+          <Text style={[styles.boxAmount, { color: Colors.investment }]}>
+            {formatMoney(summary.invested)}
+          </Text>
+        </View>
+      </View>
+
+      {budgets.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.budgetStrip}>
+            <Text style={styles.budgetStripTitle}>Budgets</Text>
+            <Text style={styles.budgetStripSub}>
+              {overCount > 0
+                ? `${overCount} over budget · see Budgets`
+                : warningCount > 0
+                  ? `${warningCount} near limit · see Budgets`
+                  : "All on track"}
+            </Text>
+          </View>
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Accounts</Text>
@@ -97,7 +136,7 @@ export default function DashboardScreen() {
                 <Text style={styles.accountType}>{account.type.replace('_', ' ')}</Text>
               </View>
               <Text style={styles.accountBalance}>
-                {account.balance.toLocaleString()}
+                {formatMoney(account.balance)}
               </Text>
             </View>
           ))
@@ -113,7 +152,7 @@ export default function DashboardScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Total Balance</Text>
-        <Text style={styles.totalBalance}>{totalBalance.toLocaleString()}</Text>
+        <Text style={styles.totalBalance}>{formatMoney(totalBalance)}</Text>
       </View>
     </ScrollView>
   );
@@ -157,6 +196,12 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     marginHorizontal: Spacing.md,
+    gap: Spacing.md,
+  },
+  rollupRow: {
+    flexDirection: 'row',
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.md,
     gap: Spacing.md,
   },
   summaryBox: {
@@ -223,4 +268,14 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
   },
+  budgetStrip: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+  },
+  budgetStripTitle: { fontSize: FontSize.md, fontWeight: '600', color: Colors.text },
+  budgetStripSub: { fontSize: FontSize.sm, color: Colors.textSecondary },
 });

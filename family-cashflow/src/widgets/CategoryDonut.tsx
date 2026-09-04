@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { Colors, FontSize, Spacing } from '../core/theme';
+import { formatMoney } from '../core/format';
 import { CategoryBreakdownItem } from '../services/transactionService';
 
 const SIZE = 140;
@@ -58,7 +59,7 @@ export default function CategoryDonut({ data, total, label }: Props) {
         </Svg>
         <View style={styles.center}>
           <Text style={styles.centerLabel}>{label}</Text>
-          <Text style={styles.centerTotal}>{total.toLocaleString()}</Text>
+          <Text style={styles.centerTotal}>{formatMoney(total)}</Text>
         </View>
       </View>
       {segments.length === 0 ? (

@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
+import { formatMoney } from '../../core/format';
 import { ParsedReceipt, ParsedLineItem, Category, Account } from '../../models';
 import { saveReceipt } from '../../services/receiptService';
 import { reportCorrection } from '../../services/categorizationService';
@@ -89,7 +90,7 @@ export default function ConfirmReceiptScreen({ receipt, categories, accounts, on
         }
       }
 
-      Alert.alert('Saved', `Receipt saved as ${result.transaction.amount.toLocaleString()} expense`, [
+      Alert.alert('Saved', `Receipt saved as ${formatMoney(result.transaction.amount)} expense`, [
         { text: 'OK', onPress: onSaved },
       ]);
     } catch (e) {
@@ -146,18 +147,18 @@ export default function ConfirmReceiptScreen({ receipt, categories, accounts, on
           <Text style={styles.sectionTitle}>Reconciliation</Text>
           <View style={styles.reconRow}>
             <Text style={styles.muted}>Items total</Text>
-            <Text style={styles.reconVal}>{lineItemsSum.toLocaleString()}</Text>
+            <Text style={styles.reconVal}>{formatMoney(lineItemsSum)}</Text>
           </View>
           <View style={styles.reconRow}>
             <Text style={styles.muted}>Printed total</Text>
-            <Text style={styles.reconVal}>{numTotal.toLocaleString()}</Text>
+            <Text style={styles.reconVal}>{formatMoney(numTotal)}</Text>
           </View>
           <View style={styles.reconRow}>
             <Text style={styles.muted}>Status</Text>
             <Text style={[styles.reconStatus, Math.abs(lineItemsSum - numTotal) < 1 ? { color: Colors.income } : { color: Colors.expense }]}>
               {Math.abs(lineItemsSum - numTotal) < 1
                 ? 'Reconciled'
-                : `Mismatch (${(numTotal - lineItemsSum).toLocaleString()})`}
+                : `Mismatch (${formatMoney(numTotal - lineItemsSum)})`}
             </Text>
           </View>
         </View>
@@ -218,7 +219,7 @@ export default function ConfirmReceiptScreen({ receipt, categories, accounts, on
             <Text style={styles.cancelText}>Discard</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={saving}>
-            {saving ? <ActivityIndicator color={Colors.surface} /> : <Text style={styles.saveText}>Save {parsedTotal ? parsedTotal.toLocaleString() : ''}</Text>}
+            {saving ? <ActivityIndicator color={Colors.surface} /> : <Text style={styles.saveText}>Save {parsedTotal ? formatMoney(parsedTotal) : ''}</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>

@@ -27,25 +27,26 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 - ✅ Reconciliation check (line items sum vs printed total)
 - ✅ Duplicate-receipt fingerprint check + warning
 - ✅ Correction feedback loop (updates item_dictionary confidence/counts) — `/api/categorize/correction`
+- ✅ ML category classifier (Naive Bayes) as extra signal in the categorize pipeline — `api/src/ml/classifier.js`, fires before fallback when confident (margin ≥ 0.35); trains from global + household dictionary weighted by confirm/correction counts, unit-tested (`node --test`)
 - ⬜ Receipt image storage (hosted Supabase Storage, household-scoped)
 
 ## Phase 3 — Budgeting
 
-- ⬜ Budget CRUD (per category, monthly limit, recurring/one-off)
-- ⬜ Budget progress bars on dedicated Budgets screen
-- ⬜ Dashboard budget-health strip
-- ⬜ Inline budget-impact hint on transaction entry
+- ✅ Budget CRUD (per category, monthly limit, recurring/one-off) — backend `/api/budgets` + `BudgetsScreen`
+- ✅ Budget progress bars on dedicated Budgets screen (spent/limit, over-budget state, month navigation)
+- ✅ Dashboard budget-health strip (on-track / near-limit / over counts)
+- ✅ Inline budget-impact hint on transaction entry (shows spent/limit when an expense category has a budget)
 - ⬜ Budget threshold notifications (80%, 100% — scheduled/triggered job)
 - ⬜ Suggested budgets based on historical spend
 
 ## Phase 4 — Transfers, Saving, Investing
 
-- ⬜ Transaction type picker (income/expense/transfer/invest/save UI)
-- ⬜ Internal transfer flow (from/to account)
-- ⬜ External transfer flow (transfer_out/transfer_in, to_person field)
-- ⬜ Saving goals CRUD + contribution flow + progress display
-- ⬜ Investments CRUD + contribution flow + manual value updates
-- ⬜ Dashboard "saved & invested this month" section
+- ✅ Transaction type picker (income/expense/transfer/invest/save UI) + goal/investment selection
+- ✅ Internal transfer flow (from/to account)
+- ✅ External transfer flow (transfer_out/transfer_in, to_person field)
+- ✅ Saving goals CRUD + contribution flow + progress display — `SavingGoalsScreen` + `/api/saving-goals`; `current_amount` maintained by trigger
+- ✅ Investments CRUD + contribution flow + manual value updates — `InvestmentsScreen` + `/api/investments`; `total_invested` maintained by trigger
+- ✅ Dashboard "saved & invested this month" section (summary returns `saved`/`invested`)
 
 ## Phase 5 — Net Worth & Reports
 
@@ -66,6 +67,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 - ⬜ Offline write queue (if gaps prove painful in real use)
 - ⬜ Search across transactions
 - ⬜ CSV export
+- ✅ Indonesian-style number formatting (dot thousands separator, `1.500.000`) via `core/format.ts` `formatMoney()`, applied across all money-display screens
 
 ## Explicitly Deferred / Non-goals
 

@@ -116,7 +116,9 @@ router.get('/summary', authRequired, async (req, res) => {
     const range = await client.query(
       `select
          coalesce(sum(amount) filter (where type='income'), 0)::float as income,
-         coalesce(sum(amount) filter (where type='expense'), 0)::float as expense
+         coalesce(sum(amount) filter (where type='expense'), 0)::float as expense,
+         coalesce(sum(amount) filter (where type='saving'), 0)::float as saved,
+         coalesce(sum(amount) filter (where type='investment'), 0)::float as invested
        from transactions
        where household_id = $1
          and to_char(txn_date, 'YYYY-MM') = $2`,
@@ -124,7 +126,9 @@ router.get('/summary', authRequired, async (req, res) => {
     );
     const income = Number(range.rows[0]?.income || 0);
     const expense = Number(range.rows[0]?.expense || 0);
-    return res.json({ summary: { income, expense, net_cashflow: income - expense, month } });
+    const saved = Number(range.rows[0]?.saved || 0);
+    const invested = Number(range.rows[0]?.invested || 0);
+    return res.json({ summary: { income, expense, net_cashflow: income - expense, saved, invested, month } });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   } finally {

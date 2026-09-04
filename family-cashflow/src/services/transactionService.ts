@@ -69,12 +69,21 @@ export async function deleteTransaction(id: string): Promise<void> {
 export async function getMonthlySummary(year: number, month: number) {
   const monthKey = `${year}-${String(month).padStart(2, '0')}`;
   const data = await api.get<{
-    summary: { income: number; expense: number; net_cashflow: number; month: string };
+    summary: {
+      income: number;
+      expense: number;
+      net_cashflow: number;
+      saved: number;
+      invested: number;
+      month: string;
+    };
   }>(`/api/transactions/summary?month=${monthKey}`);
   return {
     income: data.summary.income,
     expenses: data.summary.expense,
     netCashflow: data.summary.net_cashflow,
+    saved: data.summary.saved,
+    invested: data.summary.invested,
   };
 }
 

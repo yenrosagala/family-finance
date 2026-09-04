@@ -8,6 +8,13 @@ import transactionRoutes from './routes/transactions.js';
 import dictionaryRoutes from './routes/dictionary.js';
 import categorizeRoutes from './routes/categorize.js';
 import receiptRoutes from './routes/receipt.js';
+import budgetRoutes from './routes/budgets.js';
+import savingGoalRoutes from './routes/saving-goals.js';
+import investmentRoutes from './routes/investments.js';
+import assetRoutes from './routes/assets.js';
+import liabilityRoutes from './routes/liabilities.js';
+import netWorthRoutes from './routes/net-worth.js';
+import reportRoutes from './routes/reports.js';
 
 const app = express();
 app.use(cors());
@@ -23,6 +30,13 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/dictionary', dictionaryRoutes);
 app.use('/api/categorize', categorizeRoutes);
 app.use('/api/receipt', receiptRoutes);
+app.use('/api/budgets', budgetRoutes);
+app.use('/api/saving-goals', savingGoalRoutes);
+app.use('/api/investments', investmentRoutes);
+app.use('/api/assets', assetRoutes);
+app.use('/api/liabilities', liabilityRoutes);
+app.use('/api/net-worth', netWorthRoutes);
+app.use('/api/reports', reportRoutes);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

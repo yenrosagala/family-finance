@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { authRequired } from '../auth.js';
+import { GLOBAL_DICTIONARY } from '../data/globalDictionary.js';
+import { classifyBayes, trainBayes } from '../ml/classifier.js';
 
 const router = Router();
 
@@ -90,7 +92,7 @@ router.post('/', authRequired, async (req, res) => {
 
   // 2. Fuzzy match — household dictionary
   const { rows: allHousehold } = await pool.query(
-    `SELECT d.id, d.keyword, d.category_id, d.source, d.confidence,
+    `SELECT d.id, d.keyword, d.category_id, d.source, d.confidence, d.times_confirmed,
             c.name as category_name, c.color as category_color
      FROM item_dictionary d
      LEFT JOIN categories c ON c.id = d.category_id
@@ -148,6 +150,33 @@ router.post('/', authRequired, async (req, res) => {
       category_color: bestGlobal.category_color,
       source: 'fuzzy',
       confidence: bestGlobalScore * 0.5,
+      dictionary_id: null,
+    });
+  }
+
+  // 3.5) ML category classifier — Naive Bayes over global + household labels.
+  // Kicks in when exact/fuzzy/global matching found nothing confident. Trained
+  // from the bundled global dictionary plus household entries weighted by how
+  // often they have been confirmed/corrected (so the model improves over time).
+  const nameToId = {};
+  const mlLabels = GLOBAL_DICTIONARY.map((g) => ({ keyword: g.keyword, categoryName: g.category, weight: 1 }));
+  for (const entry of allHousehold) {
+    if (!entry.category_name) continue;
+    nameToId[entry.category_name] = entry.category_id;
+    const confirmedWeight = Math.max(1, (entry.times_confirmed || 0) + 1);
+    const sourceWeight = entry.source === 'learned' ? 1.5 : 1;
+    mlLabels.push({ keyword: entry.keyword, categoryName: entry.category_name, weight: confirmedWeight * sourceWeight });
+  }
+
+  const mlModel = trainBayes(mlLabels);
+  const prediction = classifyBayes(mlModel, normalized);
+  if (prediction && prediction.margin >= 0.35 && nameToId[prediction.categoryName]) {
+    return res.json({
+      category_id: nameToId[prediction.categoryName],
+      category_name: prediction.categoryName,
+      category_color: allHousehold.find((e) => e.category_name === prediction.categoryName)?.category_color ?? null,
+      source: 'ml',
+      confidence: Number(prediction.confidence.toFixed(3)),
       dictionary_id: null,
     });
   }

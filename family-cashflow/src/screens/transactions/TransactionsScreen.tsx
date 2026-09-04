@@ -8,6 +8,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
+import { formatMoney } from '../../core/format';
 import { getTransactions } from '../../services/transactionService';
 import { Transaction } from '../../models';
 import { TRANSACTION_TYPE_LABELS } from '../../constants/categories';
@@ -81,7 +82,7 @@ export default function TransactionsScreen() {
             { color: item.total >= 0 ? Colors.income : Colors.expense },
           ]}
         >
-          {item.total >= 0 ? '+' : ''}{item.total.toLocaleString()}
+          {item.total >= 0 ? '+' : ''}{formatMoney(item.total)}
         </Text>
       </View>
       {item.items.map((txn) => (
@@ -109,7 +110,7 @@ export default function TransactionsScreen() {
               { color: txn.type === 'income' ? Colors.income : Colors.expense },
             ]}
           >
-            {txn.type === 'income' ? '+' : '-'}{txn.amount.toLocaleString()}
+            {txn.type === 'income' ? '+' : '-'}{formatMoney(txn.amount)}
           </Text>
         </TouchableOpacity>
       ))}

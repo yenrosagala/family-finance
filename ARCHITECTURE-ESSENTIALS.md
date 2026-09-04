@@ -26,9 +26,10 @@ Expo SDK 57 (React Native 0.86 + TypeScript) → Express API (`api/`) → Hosted
 1. `item_dictionary` exact match (household)
 2. `item_dictionary` fuzzy match (household)
 3. Global default dictionary (bundled asset)
-4. Fallback → "Uncategorized", flagged in confirm screen
+4. **ML Naive Bayes classifier** (`api/src/ml/classifier.js`) — trained from global dictionary + household dictionary weighted by confirmation/correction counts; fires only when confident (log-likelihood margin ≥ 0.35), returns `source: 'ml'`
+5. Fallback → "Uncategorized", flagged in confirm screen
 
-Confidence rises on user confirm, drops and re-learns on user correction.
+Confidence rises on user confirm, drops and re-learns on user correction. The ML classifier learns the same way: each correction updates `item_dictionary`, which retrains the model on the next call.
 
 ## Net worth formula
 

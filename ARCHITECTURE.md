@@ -51,7 +51,8 @@ Internal money movement (transfer, investment, saving) must never be counted in 
      a. household item_dictionary (exact match)
      b. household item_dictionary (fuzzy match)
      c. global default dictionary (bundled JSON asset)
-     d. fallback: "Uncategorized", flagged for review
+     d. ML Naive Bayes classifier (`api/src/ml/classifier.js`) — fires only when confident (margin ≥ 0.35)
+     e. fallback: "Uncategorized", flagged for review
 6. Reconciliation check: sum(line items) vs printed total → warn on mismatch
 7. Duplicate-receipt check: hash(merchant + total + date + item_count) against
    recent household transactions → warn if a likely duplicate exists
@@ -71,10 +72,14 @@ Internal money movement (transfer, investment, saving) must never be counted in 
 - `household` — get/create/join, members list
 - `accounts` — list/create (with opening balance)/soft-delete
 - `categories` — list/create
-- `transactions` — list/create/delete, `summary` (income/expense/net), `breakdown` (per-category donut)
-- `categorize` — `POST /api/categorize` (exact → fuzzy → global → fallback), `/categorize/correction` (learning loop)
+- `transactions` — list/create/delete; `summary` (income/expense/net cashflow + `saved`/`invested`), `breakdown` (per-category donut)
+- `categorize` — `POST /api/categorize` (exact → fuzzy → global → **ML** → fallback), `/categorize/correction` (learning loop)
 - `receipt` — `POST /api/receipt/parse`, `POST /api/receipt/save`
 - `dictionary` — household dictionary CRUD + bulk
+- ML classifier (`api/src/ml/classifier.js`) — dependency-free multinomial Naive Bayes; trained from global dictionary + household `item_dictionary` (weighted by confirm/correction counts), integrated into the categorize pipeline as the step before fallback. Unit-tested via `node --test src/ml/classifier.test.js`.
+- `budgets` — `GET /api/budgets?month=YYYY-MM` (each budget w/ month-to-date `spent` via correlated subquery), `POST`, `PUT /:id`, `DELETE /:id` (Phase 3)
+- `saving-goals` — CRUD; `current_amount` maintained by the goal/investment rollup trigger (never written directly)
+- `investments` — CRUD + manual mark-to-market (`current_value`); `total_invested` maintained by the rollup trigger
 
 ### Triggers (Postgres, run on every transaction write)
 - **Balance sync trigger** (`supabase/triggers.sql`): on `INSERT/UPDATE/DELETE` of `transactions`, adjust the relevant `accounts.balance` atomically based on `type` and `from/to_account_id`. See `ARCHITECTURE-ESSENTIALS.md` for the balance-delta table. This is the only path that changes `accounts.balance`.

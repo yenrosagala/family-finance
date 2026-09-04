@@ -12,6 +12,9 @@ import MoreScreen from '../screens/more/MoreScreen';
 import ManageAccountsScreen from '../screens/more/ManageAccountsScreen';
 import ManageCategoriesScreen from '../screens/more/ManageCategoriesScreen';
 import HouseholdMembersScreen from '../screens/more/HouseholdMembersScreen';
+import BudgetsScreen from '../screens/more/BudgetsScreen';
+import SavingGoalsScreen from '../screens/more/SavingGoalsScreen';
+import InvestmentsScreen from '../screens/more/InvestmentsScreen';
 import ScanScreen from '../screens/receipts/ScanScreen';
 
 const Stack = createNativeStackNavigator();
@@ -92,6 +95,21 @@ export default function AppNavigator({ onSignOut }: AppNavigatorProps) {
           name="Household"
           component={HouseholdMembersScreen}
           options={{ headerShown: true, title: 'Household' }}
+        />
+        <Stack.Screen
+          name="Budgets"
+          component={BudgetsScreen}
+          options={{ headerShown: true, title: 'Budgets' }}
+        />
+        <Stack.Screen
+          name="SavingGoals"
+          component={SavingGoalsScreen}
+          options={{ headerShown: true, title: 'Saving Goals' }}
+        />
+        <Stack.Screen
+          name="Investments"
+          component={InvestmentsScreen}
+          options={{ headerShown: true, title: 'Investments' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

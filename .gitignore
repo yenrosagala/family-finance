@@ -32,3 +32,10 @@ Thumbs.db
 # Supabase CLI local artifacts
 supabase/.branches
 supabase/.temp
+
+# Runtime/server debug redirect files (Start-Process logs) and temp snapshots
+*.out
+*.err
+/api/ml-debug.mjs
+/ml-debug.mjs
+FamFIM.png
