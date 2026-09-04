@@ -3,14 +3,18 @@ import pg from 'pg';
 
 const { Pool } = pg;
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+const connectionString = process.env.DATABASE_URL;
 
-// Set the per-request user context once a JWT is verified, so the
-// DB's auth.uid() / RLS policies resolve to the logged-in user.
-export function setCurrentUser(client, userId) {
-  return client.query('select set_config(\'app.current_user_id\', $1, true)', [userId || '']);
-}
+// Supabase requires TLS. node-postgres maps 'sslmode=require' to
+// 'verify-full' which needs a pinned CA — avoid putting sslmode in the URL
+// and instead connect over TLS without CA verification (standard for a
+// backend-only superuser connection to Supabase). For local dev (no SSL),
+// set ssl to false by leaving the host as localhost.
+const isRemote = connectionString && !/localhost|127\.0\.0\.1/.test(connectionString);
+
+const pool = new Pool({
+  connectionString,
+  ssl: isRemote ? { rejectUnauthorized: false } : false,
+});
 
 export default pool;

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import pool, { setCurrentUser } from '../db.js';
+import pool from '../db.js';
 import { signToken, authRequired } from '../auth.js';
 
 const router = Router();
@@ -19,7 +19,7 @@ router.post('/register', async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `insert into auth.users (email, password_hash, display_name)
+      `insert into app_users (email, password_hash, display_name)
        values ($1, $2, $3)
        returning id, email, display_name, created_at`,
       [normalized, hash, displayName || normalized.split('@')[0]]
@@ -44,7 +44,7 @@ router.post('/login', async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `select id, email, password_hash, display_name from auth.users where email = $1`,
+      `select id, email, password_hash, display_name from app_users where email = $1`,
       [normalized]
     );
     const user = rows[0];
@@ -64,9 +64,8 @@ router.post('/login', async (req, res) => {
 router.get('/me', authRequired, async (req, res) => {
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const { rows } = await client.query(
-      `select id, email, display_name, created_at from auth.users where id = $1`,
+      `select id, email, display_name, created_at from app_users where id = $1`,
       [req.user.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'User not found' });

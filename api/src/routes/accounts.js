@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pool, { setCurrentUser } from '../db.js';
+import pool from '../db.js';
 import { authRequired } from '../auth.js';
 
 const router = Router();
@@ -21,7 +21,6 @@ async function requireHousehold(client, userId) {
 router.get('/', authRequired, async (req, res) => {
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const householdId = await requireHousehold(client, req.user.id);
     const { rows } = await client.query(
       `select * from accounts where household_id = $1 and is_active = true order by name`,
@@ -41,7 +40,6 @@ router.post('/', authRequired, async (req, res) => {
   if (!name || !type) return res.status(400).json({ error: 'name and type are required' });
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const householdId = await requireHousehold(client, req.user.id);
     const { rows } = await client.query(
       `insert into accounts (household_id, name, type, currency)
@@ -60,7 +58,6 @@ router.post('/', authRequired, async (req, res) => {
 router.delete('/:id', authRequired, async (req, res) => {
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const { household_id } = await client.query(
       `select household_id from accounts where id = $1`,
       [req.params.id]

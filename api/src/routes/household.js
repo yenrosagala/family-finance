@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pool, { setCurrentUser } from '../db.js';
+import pool from '../db.js';
 import { authRequired } from '../auth.js';
 
 const router = Router();
@@ -33,7 +33,6 @@ function inviteCode() {
 router.get('/', authRequired, async (req, res) => {
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const { rows } = await client.query(
       `select h.* from households h
        join household_members m on m.household_id = h.id
@@ -55,7 +54,6 @@ router.post('/', authRequired, async (req, res) => {
   }
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     await client.query('begin');
 
     const { rows } = await client.query(
@@ -103,7 +101,6 @@ router.post('/join', authRequired, async (req, res) => {
   if (!inviteCode) return res.status(400).json({ error: 'inviteCode is required' });
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const { rows } = await client.query(
       `select * from households where invite_code = upper($1)`,
       [String(inviteCode).trim()]
@@ -131,11 +128,10 @@ router.post('/join', authRequired, async (req, res) => {
 router.get('/members', authRequired, async (req, res) => {
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const { rows } = await client.query(
       `select m.*, u.email from household_members m
        join households h on h.id = m.household_id
-       join auth.users u on u.id = m.user_id
+       join app_users u on u.id = m.user_id
        where h.id in (
          select household_id from household_members where user_id = $1
        )`,

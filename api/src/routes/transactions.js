@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pool, { setCurrentUser } from '../db.js';
+import pool from '../db.js';
 import { authRequired } from '../auth.js';
 
 const router = Router();
@@ -8,7 +8,6 @@ const router = Router();
 router.get('/', authRequired, async (req, res) => {
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const { rows } = await client.query(
       `select household_id from household_members where user_id = $1 limit 1`,
       [req.user.id]
@@ -51,7 +50,6 @@ router.post('/', authRequired, async (req, res) => {
   }
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const { rows } = await client.query(
       `select household_id from household_members where user_id = $1 limit 1`,
       [req.user.id]
@@ -88,7 +86,6 @@ router.post('/', authRequired, async (req, res) => {
 router.delete('/:id', authRequired, async (req, res) => {
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const { rows } = await client.query(
       `select id from transactions where id = $1 and added_by = $2`,
       [req.params.id, req.user.id]
@@ -107,7 +104,6 @@ router.delete('/:id', authRequired, async (req, res) => {
 router.get('/summary', authRequired, async (req, res) => {
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const { rows } = await client.query(
       `select household_id from household_members where user_id = $1 limit 1`,
       [req.user.id]

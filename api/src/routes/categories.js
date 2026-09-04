@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import pool, { setCurrentUser } from '../db.js';
+import pool from '../db.js';
 import { authRequired } from '../auth.js';
 
 const router = Router();
@@ -8,7 +8,6 @@ const router = Router();
 router.get('/', authRequired, async (req, res) => {
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const { rows } = await client.query(
       `select household_id from household_members where user_id = $1 limit 1`,
       [req.user.id]
@@ -41,7 +40,6 @@ router.post('/', authRequired, async (req, res) => {
   }
   const client = await pool.connect();
   try {
-    await setCurrentUser(client, req.user.id);
     const { rows } = await client.query(
       `select household_id from household_members where user_id = $1 limit 1`,
       [req.user.id]
