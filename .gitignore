@@ -1,0 +1,32 @@
+# =========================================================
+# Root ignore for the Family Cash Flow project
+# =========================================================
+
+# Local database artifacts
+.pgdata/
+*.log
+# Local postgres data could also live here — keep DB junk out
+local/*.pid
+
+# Node / Expo (covered by family-cashflow/.gitignore, kept here as backup)
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Environment / secrets — NEVER commit these
+family-cashflow/.env
+.env
+.env*.local
+*.pem
+
+# Oh-my-stars: editor/OS cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Supabase CLI local artifacts
+supabase/.branches
+supabase/.temp
