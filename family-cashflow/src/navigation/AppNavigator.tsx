@@ -2,12 +2,15 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
 import { Colors } from '../core/theme';
 
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
 import TransactionsScreen from '../screens/transactions/TransactionsScreen';
 import AddTransactionScreen from '../screens/transactions/AddTransactionScreen';
+import MoreScreen from '../screens/more/MoreScreen';
+import ManageAccountsScreen from '../screens/more/ManageAccountsScreen';
+import ManageCategoriesScreen from '../screens/more/ManageCategoriesScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -27,27 +30,30 @@ function TabIcon({ label, focused }: { label: string; focused: boolean }) {
   );
 }
 
-function MoreScreen({ onSignOut }: { onSignOut?: () => void }) {
+type MainTabsProps = {
+  onSignOut?: () => void;
+};
+
+function MainTabs({ onSignOut }: MainTabsProps) {
   return (
-    <TouchableOpacity style={moreStyles.button} onPress={onSignOut}>
-      <Text style={moreStyles.text}>Sign Out</Text>
-    </TouchableOpacity>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused }) => <TabIcon label={route.name} focused={focused} />,
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: Colors.textMuted,
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen name="Dashboard" component={DashboardScreen} />
+      <Tab.Screen name="Transactions" component={TransactionsScreen} />
+      <Tab.Screen name="Add" component={AddTransactionScreen} options={{ tabBarLabel: 'Add' }} />
+      <Tab.Screen name="Scan" component={DashboardScreen} options={{ tabBarLabel: 'Scan' }} />
+      <Tab.Screen name="More">
+        {({ navigation }) => <MoreScreen navigation={navigation} onSignOut={onSignOut} />}
+      </Tab.Screen>
+    </Tab.Navigator>
   );
 }
-
-const moreStyles = StyleSheet.create({
-  button: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-  },
-  text: {
-    fontSize: 16,
-    color: Colors.expense,
-    fontWeight: '600',
-  },
-});
 
 type AppNavigatorProps = {
   onSignOut?: () => void;
@@ -56,46 +62,35 @@ type AppNavigatorProps = {
 export default function AppNavigator({ onSignOut }: AppNavigatorProps) {
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          contentStyle: styles.stackContent,
+        }}
+      >
         <Stack.Screen name="Main">
-          {() => (
-            <Tab.Navigator
-              screenOptions={({ route }) => ({
-                tabBarIcon: ({ focused }) => (
-                  <TabIcon label={route.name} focused={focused} />
-                ),
-                tabBarActiveTintColor: Colors.primary,
-                tabBarInactiveTintColor: Colors.textMuted,
-                headerShown: false,
-              })}
-            >
-              <Tab.Screen name="Dashboard" component={DashboardScreen} />
-              <Tab.Screen name="Transactions" component={TransactionsScreen} />
-              <Tab.Screen
-                name="Add"
-                component={AddTransactionScreen}
-                options={{ tabBarLabel: 'Add' }}
-              />
-              <Tab.Screen
-                name="Scan"
-                component={DashboardScreen}
-                options={{ tabBarLabel: 'Scan' }}
-              />
-              <Tab.Screen
-                name="More"
-                options={{ tabBarLabel: 'More' }}
-              >
-                {() => <MoreScreen onSignOut={onSignOut} />}
-              </Tab.Screen>
-            </Tab.Navigator>
-          )}
+          {() => <MainTabs onSignOut={onSignOut} />}
         </Stack.Screen>
         <Stack.Screen
           name="AddTransaction"
           component={AddTransactionScreen}
           options={{ headerShown: true, title: 'Add Transaction' }}
         />
+        <Stack.Screen
+          name="Accounts"
+          component={ManageAccountsScreen}
+          options={{ headerShown: true, title: 'Accounts' }}
+        />
+        <Stack.Screen
+          name="Categories"
+          component={ManageCategoriesScreen}
+          options={{ headerShown: true, title: 'Categories' }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  stackContent: { backgroundColor: Colors.background },
+});

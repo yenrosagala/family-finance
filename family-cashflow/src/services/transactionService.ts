@@ -72,3 +72,19 @@ export async function getMonthlySummary(year: number, month: number) {
     netCashflow: data.summary.net_cashflow,
   };
 }
+
+export interface CategoryBreakdownItem {
+  id: string;
+  name: string;
+  color: string | null;
+  icon: string | null;
+  total: number;
+}
+
+export async function getCategoryBreakdown(year: number, month: number, type: 'income' | 'expense') {
+  const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+  const data = await api.get<{ breakdown: CategoryBreakdownItem[] }>(
+    `/api/transactions/breakdown?month=${monthKey}&type=${type}`
+  );
+  return data.breakdown;
+}

@@ -8,23 +8,27 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
-import { getMonthlySummary, getAccounts } from '../../services/transactionService';
+import { getMonthlySummary, getAccounts, getCategoryBreakdown, CategoryBreakdownItem } from '../../services/transactionService';
 import { Account } from '../../models';
+import CategoryDonut from '../../widgets/CategoryDonut';
 
 export default function DashboardScreen() {
   const [summary, setSummary] = useState({ income: 0, expenses: 0, netCashflow: 0 });
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [expenseBreakdown, setExpenseBreakdown] = useState<CategoryBreakdownItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = async () => {
     try {
       const now = new Date();
-      const [monthlySummary, accountsData] = await Promise.all([
+      const [monthlySummary, accountsData, breakdown] = await Promise.all([
         getMonthlySummary(now.getFullYear(), now.getMonth() + 1),
         getAccounts(),
+        getCategoryBreakdown(now.getFullYear(), now.getMonth() + 1, 'expense'),
       ]);
       setSummary(monthlySummary);
       setAccounts(accountsData);
+      setExpenseBreakdown(breakdown);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     }
@@ -98,6 +102,13 @@ export default function DashboardScreen() {
             </View>
           ))
         )}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Spending by Category</Text>
+        <View style={styles.donutCard}>
+          <CategoryDonut data={expenseBreakdown} total={summary.expenses} label="Spent" />
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -206,5 +217,10 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textAlign: 'center',
     padding: Spacing.lg,
+  },
+  donutCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
   },
 });

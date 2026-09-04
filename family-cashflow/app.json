@@ -38,10 +38,6 @@
           "configureAndroidBackup": true
         }
       ]
-    ],
-    "extra": {
-      "supabaseUrl": "",
-      "supabaseAnonKey": ""
-    }
+    ]
   }
 }

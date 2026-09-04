@@ -132,4 +132,42 @@ router.get('/summary', authRequired, async (req, res) => {
   }
 });
 
+// GET /api/transactions/breakdown?month=YYYY-MM&type=expense
+// Per-category totals for the dashboard donut chart. Defaults to expense
+// for the current month. Only expense/income affect the P&L, so we always
+// filter on those types here.
+router.get('/breakdown', authRequired, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `select household_id from household_members where user_id = $1 limit 1`,
+      [req.user.id]
+    );
+    if (!rows[0]) return res.status(403).json({ error: 'Not in a household yet' });
+    const householdId = rows[0].household_id;
+
+    const month = req.query.month || new Date().toISOString().slice(0, 7);
+    const type = req.query.type === 'income' ? 'income' : 'expense';
+
+    const { rows: breakdown } = await client.query(
+      `select c.id, c.name, c.color, c.icon,
+              coalesce(sum(t.amount), 0)::float as total
+       from transactions t
+       join categories c on c.id = t.category_id
+       where t.household_id = $1
+         and t.type = $2
+         and t.category_id is not null
+         and to_char(t.txn_date, 'YYYY-MM') = $3
+       group by c.id, c.name, c.color, c.icon
+       order by total desc`,
+      [householdId, type, month]
+    );
+    return res.json({ breakdown, month, type });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
+  }
+});
+
 export default router;

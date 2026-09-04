@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Local API base URL. When running on a physical device via Expo Go,
 // use your computer's LAN IP (e.g. http://192.168.1.20:4000).
 // When using the Android emulator, use http://10.0.2.2:4000.
-export const API_BASE_URL = 'http://localhost:4000';
+export const API_BASE_URL = 'http://10.94.9.30:4000';
 
 const TOKEN_KEY = 'fcf_auth_token';
 

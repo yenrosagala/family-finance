@@ -6,11 +6,11 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 
 - 🟨 Auth (sign up / login via Supabase Auth)
 - 🟨 Household creation + invite code join flow
-- 🟨 Accounts CRUD (cash/bank/e-wallet/credit card)
-- 🟨 Categories CRUD + default category seed set
-- 🟨 Manual transaction entry (amount-first form), types: income/expense
+- ✅ Accounts CRUD (cash/bank/e-wallet/credit card) + Manage Accounts screen
+- ✅ Categories CRUD + default category seed set + Manage Categories screen
+- ✅ Manual transaction entry (amount-first form), types: income/expense
 - 🟨 Transactions list (grouped by date, filterable)
-- ⬜ Dashboard v1: net cashflow, income/expense totals, category donut chart
+- ✅ Dashboard v1: net cashflow, income/expense totals, category donut chart
 - ✅ Account balance sync trigger (Postgres)
 - ✅ Basic RLS policies covering all core tables
 
