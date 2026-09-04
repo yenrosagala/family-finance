@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "family-cashflow",
-    "slug": "family-cashflow",
+    "name": "FamFin Family Finance Management",
+    "slug": "famfin-family-finance",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -9,7 +9,7 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "Used to scan receipts for expense tracking."
+        "NSCameraUsageDescription": "Allow FamFin to use your camera to scan receipts."
       }
     },
     "android": {
@@ -29,7 +29,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Family Cash Flow to use your camera to scan receipts."
+          "cameraPermission": "Allow FamFin to use your camera to scan receipts."
         }
       ],
       [

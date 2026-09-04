@@ -52,7 +52,7 @@ export default function DashboardScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <View style={styles.header}>
-        <Text style={styles.greeting}>Family Cash Flow</Text>
+        <Text style={styles.greeting}>FamFin</Text>
         <Text style={styles.date}>
           {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
         </Text>

@@ -52,7 +52,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>Family Cash Flow</Text>
+          <Text style={styles.title}>FamFin</Text>
           <Text style={styles.subtitle}>
             {isSignUp ? 'Create an account' : 'Sign in to your account'}
           </Text>
