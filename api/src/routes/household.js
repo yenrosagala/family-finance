@@ -162,4 +162,51 @@ router.get('/members', authRequired, async (req, res) => {
   }
 });
 
+// DELETE /api/household/members/:user_id — admin removes a member
+router.delete('/members/:user_id', authRequired, async (req, res) => {
+  const { user_id } = req.params;
+  const householdId = await getHouseholdId(req.user.id);
+  if (!householdId) return res.status(403).json({ error: 'Not in a household yet' });
+  // Admins can remove any member; non-admins cannot
+  const { rows: member } = await pool.query(
+    `select role from household_members where household_id = $1 and user_id = $2`,
+    [householdId, user_id]
+  );
+  if (!member[0] || member[0].role !== 'admin') {
+    return res.status(403).json({ error: 'Only admin can remove members' });
+  }
+  await pool.query(
+    `delete from household_members where household_id = $1 and user_id = $2`,
+    [householdId, user_id]
+  );
+  return res.json({ deleted: true });
+});
+
+// GET /api/household/members/spending — spending per household member
+router.get('/members/spending', authRequired, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `select u.email, u.display_name,
+        count(*) as transaction_count,
+        sum(case when t.type = 'income' then t.amount else 0 end) as income_total,
+        sum(case when t.type = 'expense' then t.amount else 0 end) as expense_total,
+        sum(t.amount) filter (where t.type = 'expense') as net_expense
+       from household_members m
+       join app_users u on u.id = m.user_id
+       join transactions t on t.added_by = u.id
+       join households h on h.id = m.household_id
+      where h.id in (
+        select household_id from household_members where user_id = $1
+      )
+      group by u.email, u.display_name
+      order by net_expense desc`,
+      [req.user.id]
+    );
+    return res.json({ spending: rows });
+  } finally {
+    client.release();
+  }
+});
+
 export default router;

@@ -31,7 +31,15 @@ This is a family-scale app, not a commercial launch — "production" means "reli
 
 ### Stage 4 — Whole-Household Rollout
 - Onboard remaining family members.
-- Ship Phase 6 polish items based on friction observed in Stages 1–3.
+- Ship Phase 6 polish items based on friction observed in Stages 1–3:
+  - ✅ Number formatting (dot thousands separator)
+  - ✅ ML category classifier
+  - ✅ Household member remove endpoint
+  - ✅ Per-member spending breakdown
+  - ✅ Search across transactions
+  - ⬜ CSV export
+  - ⬜ Push notifications
+  - ⬜ Monthly asset-update reminder
 
 ## Milestones & Gates
 

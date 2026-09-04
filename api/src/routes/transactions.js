@@ -4,7 +4,7 @@ import { authRequired } from '../auth.js';
 
 const router = Router();
 
-// GET /api/transactions?startDate&endDate&type&categoryId&limit
+// GET /api/transactions?startDate&endDate&type&categoryId&search&limit
 router.get('/', authRequired, async (req, res) => {
   const client = await pool.connect();
   try {
@@ -15,21 +15,22 @@ router.get('/', authRequired, async (req, res) => {
     if (!rows[0]) return res.status(403).json({ error: 'Not in a household yet' });
     const householdId = rows[0].household_id;
 
-    const { startDate, endDate, type, categoryId } = req.query;
+    const { startDate, endDate, type, categoryId, search, limit } = req.query || {};
     const params = [householdId];
     let q = `select * from transactions where household_id = $1`;
-    const add = (clause, val) => { params.push(val); q += ` and ${clause} = $${params.length}`; };
+    const add = (clause, val) => { params.push(val); q += ` and ${clause} like $${params.length}`; };
 
     // Date filters (same column, need explicit handling)
     if (startDate) { params.push(startDate); q += ` and txn_date >= $${params.length}`; }
     if (endDate) { params.push(endDate); q += ` and txn_date <= $${params.length}`; }
     if (type) add('type', type);
     if (categoryId) add('category_id', categoryId);
+    if (search) add('merchant_name ilike', `%${search}%`), add('note ilike', `%${search}%`);
 
     q += ` order by txn_date desc, created_at desc`;
-    const limit = parseInt(req.query.limit, 10);
-    if (limit && limit > 0) {
-      params.push(limit);
+    const limitNum = parseInt(limit, 10);
+    if (limitNum && limitNum > 0) {
+      params.push(limitNum);
       q += ` limit $${params.length}`;
     }
 
@@ -41,6 +42,8 @@ router.get('/', authRequired, async (req, res) => {
     client.release();
   }
 });
+
+// POST /api/transactions
 
 // POST /api/transactions
 router.post('/', authRequired, async (req, res) => {

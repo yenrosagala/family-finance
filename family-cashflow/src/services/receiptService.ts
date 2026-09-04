@@ -1,26 +1,31 @@
-import { api } from './api';
-import { ParsedReceipt } from '../models';
-
 // ---------------------------------------------------------------------------
 // OCR ADAPTER
 // ---------------------------------------------------------------------------
-// On a real device this calls ML Kit's TextRecognition. On this sandbox
-// (no emulator/camera) we use a mock OCR that returns a deterministic raw
-// text blob we can run through the same parse pipeline, so the whole flow is
-// testable end-to-end without hardware. Swap `runOcrOnImage`'s body for the
-// ML Kit call when camera support is wired in.
+// On a real device this calls ML Kit's TextRecognition.
+// On this sandbox (no emulator/camera) we use a mock OCR that returns a
+// deterministic raw text blob we can run through the same parse pipeline,
+// so the whole flow is testable end-to-end without hardware.
+// Swap runOcrOnImage's body for the ML Kit call when camera support is wired in.
 // ---------------------------------------------------------------------------
 
-export type OcrSource = 'camera' | 'mock';
+import { api } from './api';
+import { ParsedReceipt } from '../models';
+
+// Type for the image picker result URI.
+type OcrImage = {
+  uri: string;
+};
 
 // The ML Kit TextRecognition result we consume.
 export interface OcrResult {
   text: string;
-  source: OcrSource;
+  source: 'mock' | 'camera';
 }
 
-export async function runOcrOnImage(_imageUri: string, _isMock = true): Promise<OcrResult> {
-  // TODO(phase2): Replace with ML Kit's TextRecognizer when camera is available.
+// TODO(phase2): Replace with ML Kit's TextRecognizer when camera is available.
+// Currently returns a deterministic mock text blob so the whole flow
+// (parse → categorize → confirm) works end-to-end without hardware.
+export async function runOcrOnImage(_image: OcrImage): Promise<OcrResult> {
   const mockText = `Toko Sembako Makmur
 Jl. Sudirman No. 123
 Jakarta Selatan
@@ -77,8 +82,8 @@ export async function saveReceipt(input: {
   return data;
 }
 
-// Full scan-and-confirm helper: capture (or mock) -> OCR -> parse.
+// Full scan-and-confirm helper: capture (or choose) -> OCR -> parse.
 export async function scanReceipt(imageUri: string): Promise<ParsedReceipt> {
-  const ocr = await runOcrOnImage(imageUri);
+  const ocr = await runOcrOnImage({ uri: imageUri });
   return parseReceiptText(ocr.text);
 }

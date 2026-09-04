@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
 import { scanReceipt } from '../../services/receiptService';
 import { getCategories, getAccounts } from '../../services/transactionService';
@@ -13,13 +22,27 @@ export default function ScanScreen() {
   const [accounts, setAccounts] = useState<Account[]>([]);
 
   const handleScan = async () => {
+    // Open image picker to choose a receipt photo from the library.
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+    if (!result.assets || result.assets.length === 0) {
+      Alert.alert('No image selected', 'Please select a receipt photo.');
+      return;
+    }
+
+    const imageUri = result.assets[0].uri;
     setScanning(true);
     try {
-      const [parsed, cats, accs] = await Promise.all([
-        scanReceipt('mock-receipt.jpg'),
-        getCategories(),
-        getAccounts(),
-      ]);
+      const parsed = await scanReceipt(imageUri);
+      const [cats, accs] = await Promise.all([getCategories(), getAccounts()]);
       setReceipt(parsed);
       setCategories(cats);
       setAccounts(accs);
@@ -69,19 +92,17 @@ export default function ScanScreen() {
           <Text style={styles.placeholderIcon}>📷</Text>
           <Text style={styles.placeholderTitle}>Receipt OCR</Text>
           <Text style={styles.placeholderText}>
-            Point your camera at a receipt or upload a photo. The app reads the text, extracts the
-            line items, and suggests categories. You always review before it's saved.
+            Choose a receipt photo from your library. The app reads the text via ML Kit
+            on-device text recognition, extracts the line items, and suggests categories.
+            You always review before it's saved.
           </Text>
-          <Text style={styles.hint}>
-            Note: camera capture + ML Kit OCR plug in here. For now this uses a sample receipt so
-            the confirmation flow works end-to-end.
-          </Text>
+          <Text style={styles.hint}>Tap 'Scan' to choose a photo.</Text>
         </View>
         <TouchableOpacity style={styles.scanBtn} onPress={handleScan} disabled={scanning}>
           {scanning ? (
             <ActivityIndicator color={Colors.surface} />
           ) : (
-            <Text style={styles.scanBtnText}>Scan sample receipt</Text>
+            <Text style={styles.scanBtnText}>Scan receipt</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
@@ -95,19 +116,28 @@ const styles = StyleSheet.create({
   title: { fontSize: FontSize.xxl, fontWeight: 'bold', color: Colors.text },
   body: { padding: Spacing.md, flexGrow: 1 },
   placeholder: {
-    backgroundColor: Colors.surface, borderRadius: BorderRadius.lg,
-    padding: Spacing.lg, alignItems: 'center', marginBottom: Spacing.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   placeholderIcon: { fontSize: 44, marginBottom: Spacing.sm },
   placeholderTitle: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm },
   placeholderText: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   hint: {
-    fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'center',
-    marginTop: Spacing.md, lineHeight: 18,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: Spacing.md,
+    lineHeight: 18,
   },
   scanBtn: {
-    backgroundColor: Colors.primary, borderRadius: BorderRadius.md,
-    padding: Spacing.lg, alignItems: 'center',
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    marginTop: Spacing.md,
   },
   scanBtnText: { color: Colors.surface, fontWeight: '700', fontSize: FontSize.md },
 });

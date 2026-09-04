@@ -60,12 +60,12 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 
 ## Phase 6 — Polish & Family Features
 
-- ⬜ Household member management (roles, remove member)
-- ⬜ Per-member spending breakdown
+- ✅ Household member management (roles, remove member) — added `DELETE /api/household/members/:user_id` endpoint
+- ✅ Per-member spending breakdown — added `GET /api/household/members/spending` endpoint
 - ⬜ Push notifications setup (FCM token registration)
 - ⬜ Monthly asset-update reminder notification
 - ⬜ Offline write queue (if gaps prove painful in real use)
-- ⬜ Search across transactions
+- ✅ Search across transactions — added `search` query parameter to `GET /api/transactions`
 - ⬜ CSV export
 - ✅ Indonesian-style number formatting (dot thousands separator, `1.500.000`) via `core/format.ts` `formatMoney()`, applied across all money-display screens
 

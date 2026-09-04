@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { authRequired } from '../auth.js';
 import { createHash } from 'crypto';
+import { categorizeText } from '../services/categorizeText.js';
 
 const router = Router();
 
@@ -125,104 +126,33 @@ router.post('/parse', authRequired, async (req, res) => {
   const total = extractTotal(lines);
   const lineItems = extractLineItems(lines);
 
-  // Categorize each line item against dictionary
+  // Categorize each line item (exact -> fuzzy -> global -> ML -> fallback)
   const categorized = [];
   for (const item of lineItems) {
     const normalized = item.raw_text.toLowerCase().trim();
+    const result = await categorizeText(pool, householdId, normalized);
 
-    // Exact match — household dictionary
-    const { rows: exact } = await pool.query(
-      `SELECT d.id, d.category_id, d.source, d.confidence,
-              c.name as category_name, c.color as category_color
-       FROM item_dictionary d
-       LEFT JOIN categories c ON c.id = d.category_id
-       WHERE d.household_id = $1 AND d.keyword = $2`,
-      [householdId, normalized]
-    );
-    if (exact[0]) {
-      categorized.push({
-        ...item,
-        normalized_text: item.raw_text,
-        category_id: exact[0].category_id,
-        category_name: exact[0].category_name,
-        category_color: exact[0].category_color,
-        categorization_source: 'exact',
-        confidence: Number(exact[0].confidence),
-      });
-      // Bump stats
+    // Learning: bump confirmation counts for dictionary-backed matches (exact/fuzzy).
+    if (result.dictionary_id && (result.source === 'exact' || result.source === 'fuzzy')) {
+      const isExact = result.source === 'exact';
       await pool.query(
-        `UPDATE item_dictionary SET times_confirmed = times_confirmed + 1,
-         confidence = LEAST(1.0, confidence + 0.05), last_used = now()
-         WHERE id = $1`,
-        [exact[0].id]
+        `UPDATE item_dictionary
+         SET times_confirmed = times_confirmed + 1,
+             confidence = LEAST(1.0, confidence + $1), last_used = now()
+         WHERE id = $2`,
+        [isExact ? 0.05 : 0.03, result.dictionary_id]
       );
-      continue;
+      if (isExact) result.confidence = Number(result.confidence) + 0.05;
     }
 
-    // Fuzzy match — household dictionary
-    const { rows: allDict } = await pool.query(
-      `SELECT d.id, d.keyword, d.category_id, d.confidence,
-              c.name as category_name, c.color as category_color
-       FROM item_dictionary d
-       LEFT JOIN categories c ON c.id = d.category_id
-       WHERE d.household_id = $1`,
-      [householdId]
-    );
-    let best = null;
-    let bestScore = 0;
-    for (const entry of allDict) {
-      const a = normalized;
-      const b = entry.keyword;
-      let score = 0;
-      if (a === b) score = 1.0;
-      else if (b.includes(a) || a.includes(b)) {
-        const shorter = a.length < b.length ? a : b;
-        score = shorter.length >= 4 ? 0.85 : (shorter.length / Math.max(a.length, b.length) > 0.4 ? 0.75 : 0);
-      } else {
-        // Token overlap
-        const aTokens = new Set(a.split(/\s+/));
-        const bTokens = new Set(b.split(/\s+/));
-        let overlap = 0;
-        for (const t of aTokens) {
-          for (const bt of bTokens) {
-            if (t === bt || t.startsWith(bt) || bt.startsWith(t)) { overlap++; break; }
-          }
-        }
-        if (overlap > 0) {
-          const ratio = overlap / Math.max(aTokens.size, bTokens.size);
-          score = ratio >= 0.5 ? 0.7 : 0;
-        }
-      }
-      if (score > bestScore) { bestScore = score; best = entry; }
-    }
-    if (best && bestScore >= 0.6) {
-      categorized.push({
-        ...item,
-        normalized_text: item.raw_text,
-        category_id: best.category_id,
-        category_name: best.category_name,
-        category_color: best.category_color,
-        categorization_source: 'fuzzy',
-        confidence: bestScore * Number(best.confidence),
-      });
-      await pool.query(
-        `UPDATE item_dictionary SET times_confirmed = times_confirmed + 1,
-         confidence = LEAST(1.0, confidence + 0.03), last_used = now()
-         WHERE id = $1`,
-        [best.id]
-      );
-      continue;
-    }
-
-    // Fallback
     categorized.push({
       ...item,
       normalized_text: item.raw_text,
-      category_id: null,
-      category_name: 'Uncategorized',
-      category_color: null,
-      categorization_source: 'fallback',
-      confidence: 0,
+      category_id: result.category_id,
+      category_name: result.category_name,
+      category_color: result.category_color,
+      categorization_source: result.source,
+      confidence: result.confidence,
     });
   }
 

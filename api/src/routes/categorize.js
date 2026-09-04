@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { authRequired } from '../auth.js';
-import { GLOBAL_DICTIONARY } from '../data/globalDictionary.js';
-import { classifyBayes, trainBayes } from '../ml/classifier.js';
+import { categorizeText } from '../services/categorizeText.js';
 
 const router = Router();
 
@@ -14,44 +13,6 @@ async function getHouseholdId(userId) {
   return rows[0]?.household_id || null;
 }
 
-// Simple fuzzy match: check if keyword is a substring match or token overlap
-function fuzzyMatch(keyword, target) {
-  const a = keyword.toLowerCase().trim();
-  const b = target.toLowerCase().trim();
-  if (a === b) return 1.0;
-
-  // Substring containment: shorter is contained in longer
-  if (b.includes(a) || a.includes(b)) {
-    const shorter = a.length < b.length ? a : b;
-    const longer = a.length < b.length ? b : a;
-    // If the shorter word is >= 4 chars and is a prefix/substring, score generously
-    if (shorter.length >= 4) {
-      return 0.85;
-    }
-    const ratio = shorter.length / longer.length;
-    return ratio > 0.4 ? 0.75 : 0;
-  }
-
-  // Token overlap: split on spaces, count common tokens
-  const aTokens = new Set(a.split(/\s+/));
-  const bTokens = new Set(b.split(/\s+/));
-  let overlap = 0;
-  for (const t of aTokens) {
-    for (const bt of bTokens) {
-      // Also check if one token is a prefix of the other (e.g. "bensin" matches "bensin")
-      if (t === bt || t.startsWith(bt) || bt.startsWith(t)) {
-        overlap++;
-        break;
-      }
-    }
-  }
-  if (overlap > 0) {
-    const ratio = overlap / Math.max(aTokens.size, bTokens.size);
-    return ratio >= 0.5 ? 0.7 : 0;
-  }
-  return 0;
-}
-
 // POST /api/categorize — match a keyword against dictionaries, return category + source + confidence
 router.post('/', authRequired, async (req, res) => {
   const { keyword } = req.body || {};
@@ -61,135 +22,23 @@ router.post('/', authRequired, async (req, res) => {
   const householdId = await getHouseholdId(req.user.id);
   if (!householdId) return res.status(403).json({ error: 'Not in a household yet' });
 
-  const normalized = keyword.trim().toLowerCase();
+  const result = await categorizeText(pool, householdId, keyword);
 
-  // 1. Exact match — household dictionary
-  const { rows: exactRows } = await pool.query(
-    `SELECT d.id, d.keyword, d.category_id, d.source, d.confidence,
-            c.name as category_name, c.color as category_color, c.icon as category_icon
-     FROM item_dictionary d
-     LEFT JOIN categories c ON c.id = d.category_id
-     WHERE d.household_id = $1 AND d.keyword = $2`,
-    [householdId, normalized]
-  );
-  if (exactRows[0]) {
-    // Bump confidence: confirmed++
+  // Learning: bump confirmation counts for dictionary-backed matches (exact/fuzzy).
+  if (result.dictionary_id && (result.source === 'exact' || result.source === 'fuzzy')) {
+    const isExact = result.source === 'exact';
     await pool.query(
-      `UPDATE item_dictionary SET times_confirmed = times_confirmed + 1,
-       confidence = LEAST(1.0, confidence + 0.05), last_used = now()
-       WHERE id = $1`,
-      [exactRows[0].id]
+      `UPDATE item_dictionary
+       SET times_confirmed = times_confirmed + 1,
+           confidence = LEAST(1.0, confidence + $1), last_used = now()
+       WHERE id = $2`,
+      [isExact ? 0.05 : 0.03, result.dictionary_id]
     );
-    return res.json({
-      category_id: exactRows[0].category_id,
-      category_name: exactRows[0].category_name,
-      category_color: exactRows[0].category_color,
-      source: 'exact',
-      confidence: Number(exactRows[0].confidence) + 0.05,
-      dictionary_id: exactRows[0].id,
-    });
+    // Exact branch historically reports post-bump confidence.
+    if (isExact) result.confidence = Number(result.confidence) + 0.05;
   }
 
-  // 2. Fuzzy match — household dictionary
-  const { rows: allHousehold } = await pool.query(
-    `SELECT d.id, d.keyword, d.category_id, d.source, d.confidence, d.times_confirmed,
-            c.name as category_name, c.color as category_color
-     FROM item_dictionary d
-     LEFT JOIN categories c ON c.id = d.category_id
-     WHERE d.household_id = $1`,
-    [householdId]
-  );
-  let bestFuzzy = null;
-  let bestScore = 0;
-  for (const entry of allHousehold) {
-    const score = fuzzyMatch(normalized, entry.keyword);
-    if (score > bestScore) {
-      bestScore = score;
-      bestFuzzy = entry;
-    }
-  }
-  if (bestFuzzy && bestScore >= 0.6) {
-    await pool.query(
-      `UPDATE item_dictionary SET times_confirmed = times_confirmed + 1,
-       confidence = LEAST(1.0, confidence + 0.03), last_used = now()
-       WHERE id = $1`,
-      [bestFuzzy.id]
-    );
-    return res.json({
-      category_id: bestFuzzy.category_id,
-      category_name: bestFuzzy.category_name,
-      category_color: bestFuzzy.category_color,
-      source: 'fuzzy',
-      confidence: bestScore * Number(bestFuzzy.confidence),
-      dictionary_id: bestFuzzy.id,
-    });
-  }
-
-  // 3. Global default dictionary (source='default' rows shared across households)
-  const { rows: globalDefault } = await pool.query(
-    `SELECT d.keyword, d.category_id, c.name as category_name, c.color as category_color
-     FROM item_dictionary d
-     LEFT JOIN categories c ON c.id = d.category_id
-     WHERE d.source = 'default' AND d.household_id = $1
-     LIMIT 200`,
-    [householdId]
-  );
-  let bestGlobal = null;
-  let bestGlobalScore = 0;
-  for (const entry of globalDefault) {
-    const score = fuzzyMatch(normalized, entry.keyword);
-    if (score > bestGlobalScore) {
-      bestGlobalScore = score;
-      bestGlobal = entry;
-    }
-  }
-  if (bestGlobal && bestGlobalScore >= 0.6) {
-    return res.json({
-      category_id: bestGlobal.category_id,
-      category_name: bestGlobal.category_name,
-      category_color: bestGlobal.category_color,
-      source: 'fuzzy',
-      confidence: bestGlobalScore * 0.5,
-      dictionary_id: null,
-    });
-  }
-
-  // 3.5) ML category classifier — Naive Bayes over global + household labels.
-  // Kicks in when exact/fuzzy/global matching found nothing confident. Trained
-  // from the bundled global dictionary plus household entries weighted by how
-  // often they have been confirmed/corrected (so the model improves over time).
-  const nameToId = {};
-  const mlLabels = GLOBAL_DICTIONARY.map((g) => ({ keyword: g.keyword, categoryName: g.category, weight: 1 }));
-  for (const entry of allHousehold) {
-    if (!entry.category_name) continue;
-    nameToId[entry.category_name] = entry.category_id;
-    const confirmedWeight = Math.max(1, (entry.times_confirmed || 0) + 1);
-    const sourceWeight = entry.source === 'learned' ? 1.5 : 1;
-    mlLabels.push({ keyword: entry.keyword, categoryName: entry.category_name, weight: confirmedWeight * sourceWeight });
-  }
-
-  const mlModel = trainBayes(mlLabels);
-  const prediction = classifyBayes(mlModel, normalized);
-  if (prediction && prediction.margin >= 0.35 && nameToId[prediction.categoryName]) {
-    return res.json({
-      category_id: nameToId[prediction.categoryName],
-      category_name: prediction.categoryName,
-      category_color: allHousehold.find((e) => e.category_name === prediction.categoryName)?.category_color ?? null,
-      source: 'ml',
-      confidence: Number(prediction.confidence.toFixed(3)),
-      dictionary_id: null,
-    });
-  }
-
-  // 4. Fallback — Uncategorized
-  return res.json({
-    category_id: null,
-    category_name: 'Uncategorized',
-    category_color: null,
-    source: 'fallback',
-    confidence: 0,
-    dictionary_id: null,
-  });
+  return res.json(result);
 });
 
 // POST /api/categorize/correction — user corrects a categorization
