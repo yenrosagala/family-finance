@@ -1,112 +1,122 @@
 # Development Guide
 
+## Overview
+
+This repo is two parts:
+
+- **`family-cashflow/`** — Expo SDK 57 / React Native client (TypeScript), runs in Expo Go.
+- **`api/`** — Node.js / Express API bridge that the client talks to. It connects to a **hosted Supabase Postgres** database (via the session pooler) and scopes all queries by `household_id` in code.
+
+There is no direct Supabase JS client or Edge Function dependency in the current client; the `supabase/` folder (RLS, triggers, functions) is retained for production hardening and when moving off the superuser-bypass pattern.
+
 ## Prerequisites
 
 - Node.js 18+ (`node --version`)
 - npm (`npm --version`)
 - Expo Go app on your device (iOS App Store / Android Play Store), or an emulator
-- A Supabase project (free tier is enough for family-scale use)
-- A device with a camera (for testing receipt scan; emulator camera can use a virtual scene or webcam passthrough)
+- A hosted Supabase project (free tier is enough for family-scale use)
+- A device with a camera (for testing receipt scan)
 
-## 1. Clone & Install
+## 1. Set Up the Database
 
-```bash
-git clone <repo-url> family-cashflow-app
-cd family-cashflow-app/family-cashflow
-npm install
-```
+The API connects to a hosted Supabase Postgres database using the **session pooler** (port 6543), because the account-balance sync trigger relies on `BEGIN/COMMIT` which the transaction pooler breaks.
 
-## 2. Supabase Setup
-
-1. Create a new Supabase project at supabase.com.
+1. Create a Supabase project at supabase.com.
 2. In the SQL editor, run in order:
-   - `../schema.sql` — creates all tables
-   - `../supabase/rls_policies.sql` — locks every table to household membership
-   - `../supabase/triggers.sql` — balance sync + saving/investment rollup triggers
-3. Enable Realtime on: `transactions`, `accounts`, `budgets` (Database → Replication in Supabase dashboard).
-4. Create a Storage bucket named `receipts` (the RLS policies in `rls_policies.sql` already cover it, scoped by the household-id folder in the object path: `receipts/{household_id}/...`).
-5. Deploy the Edge Functions:
-   ```bash
-   supabase functions deploy monthly-net-worth-snapshot
-   supabase functions deploy budget-threshold-check
-   ```
-   Set `SUPABASE_SERVICE_ROLE_KEY` as a function secret for both (Dashboard → Edge Functions → Secrets) — this is required since they write to tables regular clients can't.
-6. Wire up scheduling:
-   - `monthly-net-worth-snapshot`: schedule via Dashboard → Database → Cron Jobs (or pg_cron) to call the function URL on the 1st of each month.
-   - `budget-threshold-check`: create a Database Webhook (Dashboard → Database → Webhooks) on `INSERT` to `transactions` calling this function's URL.
-7. Copy your project URL and anon key from Settings → API.
+   - `schema.sql` — creates all tables
+   - `supabase/rls_policies.sql` — locks every table to household membership
+   - `supabase/triggers.sql` — balance sync + saving/investment rollup triggers
+3. Get the **session pooler** connection string: Supabase dashboard → Project Settings → Database → Connection string, and choose the pooler port 6543.
+   - Format: `postgres://<user>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres`
 
-## 3. Configure Supabase Credentials
+> Note: the API currently connects as the database superuser (`postgres`) and bypasses RLS, scoping in code by `household_id`. Before production you should switch to role-based DB access so RLS is the enforcement layer. See `PRODUCTION_READY_CHECKLIST.md`.
 
-The app reads Supabase credentials from environment variables prefixed with `EXPO_PUBLIC_`. Create a `.env` file in the project root (the `family-cashflow/` folder):
+## 2. Run the API
 
 ```bash
+cd api
+npm install
 cp .env.example .env
 ```
 
-Fill in:
+Fill in `api/.env`:
 ```
-EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+PORT=4000
+DATABASE_URL=postgres://USER:PASSWORD@aws-0-region.pooler.supabase.com:6543/postgres
+JWT_SECRET=<long-random-secret>
 ```
 
-EXPO_PUBLIC_ variables are inlined at build time by Expo — no server-side secrets, safe to use for the anon key.
+Then start it:
+```bash
+npm start          # Express API on http://localhost:4000
+```
 
-## 4. Add Default Categories (one-time)
+Demo seed (optional, creates a demo user + household used in local tests):
+```bash
+node seed-demo.js
+```
 
-After creating your household, add the default income/expense categories — either through a supabase function or via the `src/constants/categories.ts` defaults. (An automated seed is planned; for now add categories in the app or dashboard.)
-
-## 5. Running with Expo Go
+## 3. Run the Client
 
 ```bash
-npm start        # starts Expo dev server
-npm run android  # or iOS
+cd family-cashflow
+npm install
+npx expo start --host lan --port 8082 --clear
 ```
 
-Then scan the QR code with the Expo Go app on your device (same Wi-Fi network) or press `a`/`i` for an emulator.
+Scan the QR with the Expo Go app on your device (same Wi-Fi network) or press `a`/`i` for an emulator.
 
-## 6. Project Structure
+The client talks to the API at `http://<your-LAN-IP>:4000` — the base URL is configured in `src/services/api.ts` (`API_BASE_URL`). Point it at the machine running the API.
+
+> If you change the Expo SDK version, restart the dev server with `--clear` and make sure the installed **Expo Go** app on your phone matches the SDK (e.g. SDK 57). A mismatch shows "Project is incompatible with this version of Expo Go / failed to download remote update."
+
+## 4. Project Structure
 
 ```
-family-cashflow/
-  App.tsx                     # entry — auth state gate (session → household → main)
-  app.json                    # Expo config (plugins, permissions, extra env)
-  .env                        # EXPO_PUBLIC_* Supabase credentials (git-ignored)
-  .env.example
+family-cashflow/              # Expo / React Native client
+  App.tsx                     # entry - auth state gate (session -> household -> main)
+  app.json                    # Expo config (plugins, permissions, icons, name/slug)
   src/
     core/theme.ts             # colors, spacing, typography tokens
-    constants/                # config + category/transaction-type constants
+    constants/                # config + category/transaction-type constants, dictionary.json
     models/index.ts           # TS interfaces mirroring Postgres tables
     services/
-      supabase.ts             # Supabase client (AsyncStorage persistence)
+      api.ts                  # HTTP client + token storage + base URL
       authService.ts          # sign up/in/out, household create/join, members
-      transactionService.ts   # accounts, categories, transactions CRUD
-      categorization_service.ts  # (Phase 2) dictionary matching + fuzzy logic
-      ocr_service.ts          # (Phase 2) ML Kit-style OCR parsing
+      transactionService.ts   # accounts (incl. opening balance), categories, transactions
+      categorizationService.ts# dictionary matching + fuzzy logic
+      receiptService.ts       # OCR adapter + parsing helpers
     screens/
       auth/                   # AuthScreen, HouseholdOnboardingScreen
-      dashboard/
+      dashboard/              # DashboardScreen
       transactions/           # TransactionsScreen, AddTransactionScreen
-      scan-receipt/
-      budgets/
-      net-worth/
-      reports/
-      household/
+      receipts/               # ScanScreen, ConfirmReceiptScreen
+      more/                   # MoreScreen, ManageAccountsScreen, ManageCategoriesScreen, HouseholdMembersScreen
     navigation/AppNavigator.tsx  # tab + stack navigation
-    widgets/                  # shared UI components
-    hooks/                    # shared hooks
-    utils/
+    widgets/                  # shared UI components (e.g. CategoryDonut)
+api/                          # Express backend
+  src/
+    server.js                 # app wiring, route mounting
+    auth.js                   # JWT sign/verify middleware
+    db.js                     # Postgres pool (from DATABASE_URL)
+    data/globalDictionary.js  # global Indonesian item dictionary seed
+    routes/                   # auth, household, accounts, categories, transactions, categorize, receipt, dictionary
+  .env                        # git-ignored; PORT, DATABASE_URL, JWT_SECRET
+  seed-demo.js                # demo user + household seed
+schema.sql                    # authoritative Postgres data model
+supabase/                     # RLS policies, triggers, Edge Functions (hardening)
 ```
 
-## 7. Testing
+## 5. Testing
 
-- Unit tests (Jest): categorization matching logic (dictionary + fuzzy match) — highest value to test since it's the "smart" part of the app.
+- Unit tests (Jest): categorization matching logic (dictionary + fuzzy match) — highest value since it's the "smart" part of the app.
 - Component tests (React Native Testing Library): confirm screen (editing categories, saving).
 - Manual test checklist: see `PRODUCTION_READY_CHECKLIST.md`.
 
-## 8. Common Gotchas
+## 6. Common Gotchas
 
-- **Balance drift**: if you manually edit `accounts.balance` in the Supabase dashboard while testing, it'll fall out of sync — always go through transactions, or reset via a fresh trigger run.
-- **RLS lockout during dev**: if queries silently return empty results, check RLS policies before assuming a code bug — this is the most common "why is my data missing" issue with Supabase.
-- **OCR accuracy varies by lighting/receipt condition** — test with a range of real family receipts, not just clean printed ones.
-- **EXPO_PUBLIC_ vars are baked at build time** — restart `npm start` after changing `.env`.
+- **Balance drift**: never edit `accounts.balance` directly — the sync trigger keeps it in sync with `transactions`. Account opening balances are created as `income` transactions so the trigger applies them.
+- **SDK mismatch**: Expo Go on your phone must match the project SDK (57). Otherwise you get "Project is incompatible with this version of Expo Go."
+- **Session pooler vs transaction pooler**: use the session pooler (6543) so `BEGIN/COMMIT` works for multi-statement writes (e.g. account plus opening-balance transaction, receipt save).
+- **IPv6-only hosts**: if a direct `.supabase.co:5432` connection times out on a Windows host, switch `DATABASE_URL` to the pooler over IPv4.
+- **LAN IP**: the phone reaches the API at the PC's LAN IP; regenerate the base URL in `src/services/api.ts` if the IP changes.

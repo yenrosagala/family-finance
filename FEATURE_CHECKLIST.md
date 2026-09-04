@@ -4,19 +4,21 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 
 ## Phase 1 — MVP (core loop working)
 
-- 🟨 Auth (sign up / login via Supabase Auth)
-- 🟨 Household creation + invite code join flow (join works; member management UI added via Household screen under More)
+- ✅ Auth (sign up / login via custom JWT + `app_users`, bcrypt) — backend `/api/auth`, `authService.ts`
+- ✅ Household creation + invite code join flow — backend `/api/household` (+`/join`), `HouseholdOnboardingScreen`
+- ✅ Household member management UI — `HouseholdMembersScreen` (invite code copy + member list) under More
 - ✅ Accounts CRUD (cash/bank/e-wallet/credit card) with opening balance + Manage Accounts screen
 - ✅ Categories CRUD + default category seed set + Manage Categories screen
 - ✅ Manual transaction entry (amount-first form), types: income/expense
-- 🟨 Transactions list (grouped by date, filterable)
+- 🟨 Transactions list (grouped by date, filterable) — list + delete exist; date grouping polish pending
 - ✅ Dashboard v1: net cashflow, income/expense totals, category donut chart
-- ✅ Account balance sync trigger (Postgres)
-- ✅ Basic RLS policies covering all core tables
+- ✅ Account balance sync trigger (Postgres) — 7 transaction types
+- ✅ RLS policies covering all core tables (`supabase/rls_policies.sql`)
+- ⬜ Cross-account/user verification of RLS + role permissions (see PRODUCTION_READY_CHECKLIST)
 
 ## Phase 2 — Receipt Scanning
 
-- 🟨 Camera capture + ML Kit OCR integration (adapter ready; camera/MK wiring pending device testing)
+- 🟨 Camera capture + OCR integration from device (adapter + mock ready; real camera/OCR wiring pending device testing)
 - ✅ Receipt parsing (merchant, date, total, line items) — backend `POST /api/receipt/parse`
 - ✅ Global default item dictionary (bundled JSON, common Indonesian retail items) — seeded into every household
 - ✅ Household item dictionary + exact/fuzzy matching — backend `/api/categorize` + `categorizationService.ts`
@@ -25,7 +27,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 - ✅ Reconciliation check (line items sum vs printed total)
 - ✅ Duplicate-receipt fingerprint check + warning
 - ✅ Correction feedback loop (updates item_dictionary confidence/counts) — `/api/categorize/correction`
-- ⬜ Receipt image storage (Supabase Storage, household-scoped)
+- ⬜ Receipt image storage (hosted Supabase Storage, household-scoped)
 
 ## Phase 3 — Budgeting
 

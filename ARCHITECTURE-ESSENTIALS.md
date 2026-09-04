@@ -3,7 +3,7 @@
 > Full detail in `ARCHITECTURE.md`. This is the fast-lookup version for active development.
 
 ## Stack
-Flutter → Supabase (Postgres + Auth + Storage + Realtime + Edge Functions). OCR via ML Kit, on-device.
+Expo SDK 57 (React Native 0.86 + TypeScript) → Express API (`api/`) → Hosted Supabase Postgres (session pooler, port 6543). Auth = custom JWT vs `app_users` (bcrypt). OCR via Expo Camera (on-device intent, adapter swappable).
 
 ## Transaction types & balance effect
 
@@ -18,6 +18,8 @@ Flutter → Supabase (Postgres + Auth + Storage + Realtime + Edge Functions). OC
 | `saving` | required | required (linked goal's account) | `-amount`/`+amount`; increments `saving_goals.current_amount` |
 
 **Only `income` and `expense` count toward net cashflow / P&L.** Everything else is money repositioning, not economic gain/loss.
+
+**Account opening balance** = an `income` transaction (category "Opening Balance") created with the account, so the trigger sets `accounts.balance`. Never a direct balance write.
 
 ## Categorization lookup order
 
@@ -46,4 +48,4 @@ Saving goals are NOT counted separately — they're a label on a linked account 
 
 ## Security model
 
-Every table scoped by `household_id`; RLS checks requester is in `household_members` for that household. Admins can edit/delete anyone's transactions in the household; regular members can only edit/delete their own.
+Every table is scoped by `household_id`. `supabase/rls_policies.sql` defines RLS that checks the requester is in `household_members` for that household. Today the API connects as the DB superuser and re-enforces scoping in code; switch to least-privilege DB roles and verify cross-household tests before production. Admins can edit/delete anyone's transactions in the household; regular members can only edit/delete their own.

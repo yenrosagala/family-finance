@@ -36,9 +36,10 @@ A shared, low-friction family finance app where:
 
 ## 6. Key Product Decisions (already made, see chat history / ARCHITECTURE.md)
 
-- **Flutter**, cross-platform, Android-first.
-- **On-device OCR** (ML Kit) for privacy + offline use + zero API cost.
-- **Supabase/Postgres** backend — chosen over Firebase for relational fit (financial statements are SQL-shaped) and existing team familiarity.
+- **Expo / React Native** (TypeScript), cross-platform, Android-first, runs in Expo Go.
+- **Express API bridge** (`api/`) in front of hosted **Supabase Postgres** — the client never talks to the DB directly; auth is a custom JWT against `app_users`.
+- **On-device OCR** (Expo Camera) for privacy + offline use + zero API cost (adapter ready; real camera wiring pending device testing).
+- **Postgres** backend — chosen over Firebase for relational fit (financial statements are SQL-shaped) and SQL aggregation for reports/net worth.
 - **Category learning via dictionary + fuzzy match + user corrections**, not a trained ML model — avoids needing a labeled dataset upfront, fully explainable, works offline.
 - **7 transaction types**: income, expense, transfer (internal), transfer_out/in (external), investment, saving — chosen so internal money movement never pollutes the income/expense net cashflow number.
 

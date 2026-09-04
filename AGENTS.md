@@ -8,6 +8,7 @@ Instructions for AI coding agents (Claude Code, Cursor, etc.) working in this re
 2. Read `schema.sql` for the authoritative data model. Do not invent new columns or tables without updating `schema.sql` and `ARCHITECTURE.md` in the same change.
 3. Check `FEATURE_CHECKLIST.md` to see what phase is currently active — don't build Phase 4 features while Phase 1 is incomplete unless explicitly asked.
 4. Backend logic already exists and should not be reimplemented from scratch:
+   - `api/src/routes/` — the Express API the client actually uses (auth, household, accounts, categories, transactions, categorize, receipt, dictionary)
    - `supabase/rls_policies.sql` — every table's access control
    - `supabase/triggers.sql` — account balance sync + saving/investment rollup
    - `supabase/functions/monthly-net-worth-snapshot/` — scheduled net worth calc
@@ -24,9 +25,9 @@ Instructions for AI coding agents (Claude Code, Cursor, etc.) working in this re
 
 ## Code Style / Structure
 
-- Follow the `lib/` structure proposed in `DEVELOPMENT.md` (`core/`, `models/`, `services/`, `screens/`, `widgets/`) — place new files accordingly rather than creating ad-hoc top-level folders.
-- Categorization/matching logic (dictionary + fuzzy match) lives in `services/categorization_service.dart` — keep OCR parsing (`ocr_service.dart`) separate from categorization logic so each can be tested independently.
-- Prefer Postgres for aggregation logic (SUM/GROUP BY for reports, net worth) over pulling all rows and computing client-side — this was a deliberate reason for choosing Supabase over Firestore.
+- Follow the `src/` structure in `DEVELOPMENT.md` against `family-cashflow/src/` (`core/`, `constants/`, `models/`, `services/`, `screens/`, `navigation/`, `widgets/`) — place new files accordingly rather than creating ad-hoc top-level folders. Backend routes go in `api/src/routes/`.
+- Categorization/matching logic lives in `services/categorizationService.ts` — keep OCR parsing (`services/receiptService.ts` / `ocr_service`) separate from categorization logic so each can be tested independently.
+- Prefer Postgres for aggregation logic (SUM/GROUP BY for reports, net worth) over pulling all rows and computing client-side — this was a deliberate reason for choosing Postgres over Firestore.
 
 ## When Adding a Feature
 

@@ -8,14 +8,16 @@ This is a family-scale app, not a commercial launch — "production" means "reli
 
 ### Stage 0 — Foundation (pre-code)
 - ✅ Data model finalized (`schema.sql`)
-- ✅ Architecture decisions locked (Flutter + Supabase, on-device OCR, dictionary-based categorization)
-- ⬜ Supabase project provisioned, schema applied, RLS policies written
-- ⬜ Flutter project scaffolded per `DEVELOPMENT.md` structure
+- ✅ Architecture decisions locked (Expo/React Native + Express API → hosted Supabase Postgres, on-device OCR intent, dictionary-based categorization)
+- ✅ Supabase project provisioned, schema applied, RLS + triggers written (`supabase/`)
+- ✅ Expo/React Native client scaffolded (`family-cashflow/`) + Express API (`api/`); app builds and runs
 
-### Stage 1 — Private Alpha (you + one other family member)
-- Ship Phase 1 (MVP) + Phase 2 (receipt scanning) from `FEATURE_CHECKLIST.md`.
+### Stage 1 — Private Alpha (you + one other family member) — CURRENT
+- ✅ Phase 1 (MVP): auth (custom JWT + `app_users`), household create/join, accounts (with opening balance), categories, manual transaction entry, dashboard (net cashflow + donut), balance-sync trigger, RLS written.
+- 🟨 Phase 2 (receipt scanning): parsing, dictionary + fuzzy categorization, confirm screen, dedupe/reconciliation/fingerprint, correction loop — all built and verified server-side. **Camera capture + on-device OCR from a real device is the remaining piece** (sandbox can't test it).
 - Goal: replace whatever ad-hoc tracking (notes app, spreadsheet, memory) the family currently uses, for expense logging only.
 - Success signal: both of you are logging real transactions daily without friction complaints.
+- **Not yet met:** this stage needs 2+ weeks of real daily use and the cross-account/real-receipt verification items in `PRODUCTION_READY_CHECKLIST.md` before being called done.
 
 ### Stage 2 — Budgeting Rollout
 - Ship Phase 3.
