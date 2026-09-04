@@ -6,7 +6,12 @@ export async function getAccounts(): Promise<Account[]> {
   return data.accounts;
 }
 
-export async function createAccount(account: { name: string; type: string; currency?: string }): Promise<Account> {
+export async function createAccount(account: {
+  name: string;
+  type: string;
+  currency?: string;
+  openingBalance?: number;
+}): Promise<Account> {
   const data = await api.post<{ account: Account }>('/api/accounts', account);
   return data.account;
 }

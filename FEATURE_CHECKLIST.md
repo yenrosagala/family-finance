@@ -6,7 +6,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 
 - 🟨 Auth (sign up / login via Supabase Auth)
 - 🟨 Household creation + invite code join flow
-- ✅ Accounts CRUD (cash/bank/e-wallet/credit card) + Manage Accounts screen
+- ✅ Accounts CRUD (cash/bank/e-wallet/credit card) with opening balance + Manage Accounts screen
 - ✅ Categories CRUD + default category seed set + Manage Categories screen
 - ✅ Manual transaction entry (amount-first form), types: income/expense
 - 🟨 Transactions list (grouped by date, filterable)

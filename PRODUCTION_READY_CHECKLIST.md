@@ -10,6 +10,7 @@ Run through this before treating any release as safe for real family financial d
 - [ ] Net worth calculation manually cross-checked against a spreadsheet for at least one full month
 - [ ] Saving goals confirmed NOT double-counted in net worth (label on account, not separate asset)
 - [ ] Internal transfers confirmed excluded from income/expense P&L totals
+- [ ] Account opening balance creates an `income` transaction through the sync trigger (never a direct balance write) and sets the correct starting balance
 
 ## Receipt Scanning Safety
 

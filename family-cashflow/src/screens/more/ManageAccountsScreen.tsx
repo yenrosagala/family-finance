@@ -18,6 +18,7 @@ export default function ManageAccountsScreen() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('cash');
+  const [openingBalance, setOpeningBalance] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -46,8 +47,14 @@ export default function ManageAccountsScreen() {
     }
     setLoading(true);
     try {
-      await createAccount({ name: name.trim(), type });
+      const balance = parseFloat(openingBalance);
+      await createAccount({
+        name: name.trim(),
+        type,
+        openingBalance: openingBalance.trim() && !isNaN(balance) && balance > 0 ? balance : undefined,
+      });
       setName('');
+      setOpeningBalance('');
       await load();
     } catch (e) {
       Alert.alert('Error', (e as Error).message);
@@ -95,6 +102,14 @@ export default function ManageAccountsScreen() {
                 placeholderTextColor={Colors.textMuted}
                 value={name}
                 onChangeText={setName}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Opening balance (e.g. 1000000)"
+                placeholderTextColor={Colors.textMuted}
+                value={openingBalance}
+                onChangeText={setOpeningBalance}
+                keyboardType="numeric"
               />
               <View style={styles.chipRow}>
                 {ACCOUNT_TYPES.map((t) => (
