@@ -15,6 +15,7 @@ import HouseholdMembersScreen from '../screens/more/HouseholdMembersScreen';
 import BudgetsScreen from '../screens/more/BudgetsScreen';
 import SavingGoalsScreen from '../screens/more/SavingGoalsScreen';
 import InvestmentsScreen from '../screens/more/InvestmentsScreen';
+import NetWorthScreen from '../screens/more/NetWorthScreen';
 import ScanScreen from '../screens/receipts/ScanScreen';
 
 const Stack = createNativeStackNavigator();
@@ -110,6 +111,11 @@ export default function AppNavigator({ onSignOut }: AppNavigatorProps) {
           name="Investments"
           component={InvestmentsScreen}
           options={{ headerShown: true, title: 'Investments' }}
+        />
+        <Stack.Screen
+          name="NetWorth"
+          component={NetWorthScreen}
+          options={{ headerShown: true, title: 'Net Worth' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

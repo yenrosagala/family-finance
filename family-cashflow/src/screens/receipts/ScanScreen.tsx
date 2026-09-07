@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
-  Permissions as ReactNativePermissions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
@@ -23,15 +22,9 @@ export default function ScanScreen() {
   const [accounts, setAccounts] = useState<Account[]>([]);
 
   const handleScan = async () => {
-    // Request camera permission if not already granted
-    const { status: cameraPermission } = await Permissions.getAsync(ReactNativePermissions.Camera);
-    const canUseCamera = cameraPermission === 'granted';
-
-    // Open image picker — camera if permission granted, otherwise library
+    // Open image picker — camera/library access is handled by expo-image-picker itself
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaType: canUseCamera
-        ? ImagePicker.MediaTypeOptions.Images
-        : ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.8,

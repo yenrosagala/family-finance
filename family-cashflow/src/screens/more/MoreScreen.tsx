@@ -12,6 +12,7 @@ export default function MoreScreen({ onSignOut, navigation }: MoreScreenProps) {
     { key: 'Budgets', title: 'Budgets', subtitle: 'Set monthly limits per category', icon: '\uD83C\uDFAF' },
     { key: 'SavingGoals', title: 'Saving Goals', subtitle: 'Track goals toward a target', icon: '\uD83D\uDCB0' },
     { key: 'Investments', title: 'Investments', subtitle: 'Track contributions & value', icon: '\uD83D\uDCC8' },
+    { key: 'NetWorth', title: 'Net Worth', subtitle: 'Assets minus liabilities', icon: '\u2696\uFE0F' },
     { key: 'Household', title: 'Household', subtitle: 'Invite code & family members', icon: '\uD83C\uDFE0' },
     { key: 'Accounts', title: 'Accounts', subtitle: 'Manage cash, bank, e-wallet, cards', icon: '\uD83D\uDCB3' },
     { key: 'Categories', title: 'Categories', subtitle: 'Add income & expense categories', icon: '\uD83C\uDF5F' },

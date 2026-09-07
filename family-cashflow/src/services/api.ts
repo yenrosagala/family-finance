@@ -1,9 +1,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
-// Local API base URL. When running on a physical device via Expo Go,
-// use your computer's LAN IP (e.g. http://192.168.1.20:4000).
-// When using the Android emulator, use http://10.0.2.2:4000.
-export const API_BASE_URL = 'http://192.168.1.5:4000';
+// Derive the dev API host from the Metro host that served this bundle
+// (Expo's expoConfig.hostUri, e.g. "192.168.1.20:8081" in Expo Go on LAN).
+// The API runs on the same machine, so the host part routes correctly for
+// web, emulator, and physical devices. Falls back to localhost when absent.
+const API_PORT = 4000;
+
+function resolveApiBaseUrl(): string {
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const lastColon = hostUri.lastIndexOf(':');
+    const host = (lastColon > -1 ? hostUri.slice(0, lastColon) : hostUri).replace(/^\[|\]$/g, '');
+    if (host) return `http://${host}:${API_PORT}`;
+  }
+  return `http://localhost:${API_PORT}`;
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 const TOKEN_KEY = 'fcf_auth_token';
 

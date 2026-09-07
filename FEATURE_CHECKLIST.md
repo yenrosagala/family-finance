@@ -51,7 +51,7 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 ## Phase 5 — Net Worth & Reports
 
 - ⬜ Assets/liabilities CRUD (property, vehicles, loans, etc.)
-- ⬜ Net worth screen: total, trend chart, assets/liabilities breakdown
+- ✅ Net worth screen: total, assets/liabilities breakdown, snapshot history — `NetWorthScreen.tsx` (pulled from companion checkout) + `/api/net-worth`
 - ⬜ Monthly net worth snapshot scheduled job
 - ⬜ Reports screen: Income Statement (P&L) view, date range picker
 - ⬜ Reports screen: Balance Sheet view

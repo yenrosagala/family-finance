@@ -11,7 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import { api } from './api';
-import { ParsedReceipt } from '../models';
+import { ParsedReceipt, Transaction, TransactionLineItem } from '../models';
 
 // The ML Kit TextRecognition result we consume.
 export interface OcrResult {
@@ -62,4 +62,27 @@ export async function parseReceiptText(ocrText: string): Promise<ParsedReceipt> 
     { ocr_text: ocrText }
   );
   return data as unknown as ParsedReceipt;
+}
+
+export interface SaveReceiptInput {
+  merchant_name: string | null;
+  txn_date: string;
+  total: number;
+  from_account_id: string;
+  category_id: string | null;
+  line_items: Array<{
+    raw_text: string;
+    normalized_text: string | null;
+    amount: number;
+    category_id: string | null;
+    categorization_source: 'exact' | 'fuzzy' | 'fallback' | 'manual' | null;
+  }>;
+  receipt_fingerprint: string | null;
+  note: string | null;
+}
+
+// The confirm screen is the mandatory gate — nothing is written until the
+// user reviews the OCR output and explicitly taps Save.
+export async function saveReceipt(input: SaveReceiptInput): Promise<{ transaction: Transaction; line_items: TransactionLineItem[] }> {
+  return api.post<{ transaction: Transaction; line_items: TransactionLineItem[] }>('/api/receipt/save', input);
 }
