@@ -18,7 +18,8 @@ import reportRoutes from './routes/reports.js';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// 30mb so receipt photos (base64) can reach /api/receipt/ocr.
+app.use(express.json({ limit: '30mb' }));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

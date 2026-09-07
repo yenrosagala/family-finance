@@ -14,7 +14,8 @@ This is a family-scale app, not a commercial launch — "production" means "reli
 
 ### Stage 1 — Private Alpha (you + one other family member) — CURRENT
 - ✅ Phase 1 (MVP): auth (custom JWT + `app_users`), household create/join, accounts (with opening balance), categories, manual transaction entry, dashboard (net cashflow + donut), balance-sync trigger, RLS written.
-- 🟨 Phase 2 (receipt scanning): parsing, dictionary + fuzzy categorization + **Naive Bayes ML classifier** (`api/src/ml/classifier.js`), confirm screen, dedupe/reconciliation/fingerprint, correction loop — all built and verified server-side. **Camera capture + on-device OCR from a real device is the remaining piece** (sandbox can't test it).
+- 🟨 Phase 2 (receipt scanning): parsing, dictionary + fuzzy categorization + **Naive Bayes ML classifier** (`api/src/ml/classifier.js`), confirm screen, dedupe/reconciliation/fingerprint, correction loop — all built and verified server-side. **Camera capture from a real device is the remaining piece** (sandbox can't test it).
+- 🟨 **Server-side OCR (PaddleOCR-VL)**: `ocr_service/` now loads the PaddleOCR-VL model on this machine under transformers 5.x (rope + `cache_position` compat patches), with an end-to-end `/ocr` endpoint and an unauthenticated app→API proxy (`POST /api/receipt/ocr`). Text-only generation is verified correct; **image-conditioned OCR output is currently garbage (model returns ~1 spurious token on any image)** — weights/rope/position-compat are proven good, so the gap is the vision-feature merge path under transformers 5.x remote code. Two directions: (a) serve OCR via Paddle's native engine (PaddleX/PaddleOCR python) which the upstream demo actually uses, or (b) keep debugging the HF transformers path. Not wired into the scan flow as primary until output quality is usable.
 - Goal: replace whatever ad-hoc tracking (notes app, spreadsheet, memory) the family currently uses, for expense logging only.
 - Success signal: both of you are logging real transactions daily without friction complaints.
 - **Not yet met:** this stage needs 2+ weeks of real daily use and the cross-account/real-receipt verification items in `PRODUCTION_READY_CHECKLIST.md` before being called done.
@@ -53,7 +54,7 @@ This is a family-scale app, not a commercial launch — "production" means "reli
 
 ## Risk Areas to Watch
 
-- **OCR accuracy on real receipts** — test against actual family shopping receipts (minimarket, traditional market, online order printouts) early, not just clean samples.
+- **OCR accuracy on real receipts** — test against actual family shopping receipts (minimarket, traditional market, online order printouts) early, not just clean samples. **Current blocker:** server OCR loads and generates but vision conditioning returns garbage under transformers 5.x — untested against any real receipt until resolved.
 - **Balance drift** — the sync trigger must be correct for all 7 transaction types; a bug here silently corrupts every account balance.
 - **Adoption drop-off** — the classic budgeting-app failure mode. Watch for logging frequency dropping after the first few weeks and address friction immediately rather than adding more features.
 

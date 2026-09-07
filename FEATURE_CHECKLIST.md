@@ -10,8 +10,12 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 - ✅ Accounts CRUD (cash/bank/e-wallet/credit card) with opening balance + Manage Accounts screen
 - ✅ Categories CRUD + default category seed set + Manage Categories screen
 - ✅ Manual transaction entry (amount-first form), types: income/expense
-- 🟨 Transactions list (grouped by date, filterable) — list + delete exist; date grouping polish pending
+- ✅ Transactions list (grouped by date, filterable, expandable day cards) — date normalization + amount typing fixed
+- ✅ Per-new-user data source choice at signup: Supabase Cloud or on-device SQLite (local) — `core/dataSource.ts` + `services/local/`; core loop (auth, household, accounts, categories, transactions, summaries, net worth) works in both modes; local mode disabled on web (device-only SQLite)
+- ✅ Budgets, saving goals, and investments fully supported in Local mode — on-device `budgets`/`saving_goals`/`investments` tables (schema v2) + `localGetBudgets/localCreateBudget/localUpdateBudget/localDeleteBudget`, `localGetSavingGoals/localCreateSavingGoal/localUpdateSavingGoal/localDeleteSavingGoal`, `localGetInvestments/localCreateInvestment/localUpdateInvestment/localDeleteInvestment`; progress/`current_amount`/`total_invested` derived from transactions (same semantics as the cloud triggers); `localNetWorth` includes `investments.current_value`
 - ✅ Dashboard v1: net cashflow, income/expense totals, category donut chart
+- ✅ Dashboard period toggle (Daily / Weekly / Monthly) + income-vs-expense line chart — `getSeries` (day/week/month buckets, P&L-only) + `IncomeExpenseChart` widget + range-based category breakdown
+- ✅ Dashboard Income Allocation Sankey — `IncomeAllocationChart` widget replaces the Cashflow net chart; income flows into Expenses / Savings / Investments (amounts proportional to node heights)
 - ✅ Account balance sync trigger (Postgres) — 7 transaction types
 - ✅ RLS policies covering all core tables (`supabase/rls_policies.sql`)
 - ⬜ Cross-account/user verification of RLS + role permissions (see PRODUCTION_READY_CHECKLIST)
@@ -19,6 +23,8 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 ## Phase 2 — Receipt Scanning
 
 - 🟨 Camera capture + OCR integration from device (adapter + mock ready; real camera/OCR wiring pending device testing)
+- 🟨 Server-side OCR service (`ocr_service/`) — PaddleOCR-VL loads under transformers 5.x with rope/`cache_position` compat; `/ocr` endpoint live; **vision output quality unresolved** (model emits ~1 spurious token per image) → not wired as the scan default until it reads real text
+- ✅ App wants server OCR first, fallback to local parse — `POST /api/receipt/ocr` (intentionally unauthenticated proxy → FastAPI)
 - ✅ Receipt parsing (merchant, date, total, line items) — backend `POST /api/receipt/parse`
 - ✅ Global default item dictionary (bundled JSON, common Indonesian retail items) — seeded into every household
 - ✅ Household item dictionary + exact/fuzzy matching — backend `/api/categorize` + `categorizationService.ts`

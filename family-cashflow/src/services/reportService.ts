@@ -1,4 +1,5 @@
 import { api } from './api';
+import { isLocalMode, localUnavailable } from '../core/dataSource';
 
 function monthKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, '0')}`;
@@ -18,7 +19,12 @@ export interface IncomeStatement {
   net_cashflow: number;
 }
 
+async function guardLocal(): Promise<void> {
+  if (await isLocalMode()) throw localUnavailable('Reports');
+}
+
 export async function getIncomeStatement(year: number, month: number): Promise<IncomeStatement> {
+  await guardLocal();
   return api.get<IncomeStatement>(`/api/reports/pl?year=${year}&month=${month}`);
 }
 
@@ -38,6 +44,7 @@ export interface BalanceSheet {
 }
 
 export async function getBalanceSheet(): Promise<BalanceSheet> {
+  await guardLocal();
   return api.get<BalanceSheet>('/api/reports/balance-sheet');
 }
 
@@ -65,6 +72,7 @@ export interface ComparisonReport {
 }
 
 export async function getComparison(year: number, month: number): Promise<ComparisonReport> {
+  await guardLocal();
   return api.get<ComparisonReport>(`/api/reports/compare?year=${year}&month=${month}`);
 }
 

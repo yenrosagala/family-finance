@@ -1,33 +1,43 @@
 // ---------------------------------------------------------------------------
 // OCR ADAPTER
 // ---------------------------------------------------------------------------
-// On a real device this calls ML Kit's TextRecognition.
-// On this sandbox (no ML Kit available) we use a mock OCR that returns a
-// deterministic raw text blob we can run through the same parse pipeline,
-// so the whole flow is testable end-to-end without hardware.
-// The ML classifier (Naive Bayes) is invoked via /api/categorize and is
-// guaranteed to work regardless of the OCR source — mock or camera.
-// Swap runOcrOnImage's body for the ML Kit call when camera + ML Kit are available.
+// Camera capture is real: ScanScreen takes a photo / picks one from the
+// library via expo-image-picker and passes the image (base64) in here.
+//
+// Image -> text recognition:
+//   - Online: the image is POSTed to /api/receipt/ocr, which the Express API
+//     proxies to the PaddleOCR-VL microservice (ocr_service/main.py).
+//   - Offline / service down: falls back to a deterministic mock text blob so
+//     the flow (capture → parse → confirm → save) still works end-to-end.
+// The classifier is invoked client-side offline (global dictionary) and by
+// /api/receipt/parse online, and guarantees categorical results regardless of
+// the OCR source.
 // ---------------------------------------------------------------------------
 
 import { api } from './api';
-import { ParsedReceipt, Transaction, TransactionLineItem } from '../models';
+import { Category, ParsedReceipt, Transaction, TransactionLineItem } from '../models';
+import { isLocalMode } from '../core/dataSource';
+import { localParseReceiptText, localSaveReceipt } from './local/receipt';
 
-// The ML Kit TextRecognition result we consume.
+// The result we hand to the parser.
 export interface OcrResult {
   text: string;
   source: 'mock' | 'camera';
 }
 
-// TODO(phase2): Replace with ML Kit's TextRecognizer when camera + ML Kit are available.
-// Currently returns a deterministic mock text blob so the whole flow
-// (parse → categorize → confirm) works end-to-end without hardware.
-// The classifyText shared function (used by both /api/categorize and /api/receipt/parse)
-// guarantees categorical results (exact → fuzzy → global → ML → fallback) regardless
-// of the OCR source.
-export async function runOcrOnImage(_image: { uri: string }): Promise<OcrResult> {
-  // Mock path — used during development/sandbox testing.
-  // In a real app with ML Kit, this would call ML Kit's TextRecognizer.
+// Convert a captured receipt photo into text using PaddleOCR-VL (server-side).
+// Falls back to a deterministic sample blob when the service is unreachable so
+// the full scan flow remains exercisable offline and in the sandbox.
+export async function runOcrOnImage(image: { uri: string; base64?: string }): Promise<OcrResult> {
+  if (image.base64) {
+    try {
+      const data = await api.post<{ text: string }>('/api/receipt/ocr', { image_base64: image.base64 });
+      if (data.text && data.text.trim()) return { text: data.text, source: 'camera' };
+    } catch (e) {
+      console.warn('Server OCR unavailable, using fallback text:', (e as Error).message);
+    }
+  }
+  // Offline / fallback path — deterministic so the pipeline is testable.
   const mockText = `Toko Sembako Makmur
 Jl. Sudirman No. 123
 Jakarta Selatan
@@ -49,14 +59,17 @@ Total                 544000`;
 }
 
 // Full scan-and-confirm helper: capture (or choose) -> OCR -> parse.
-export async function scanReceipt(imageUri: string): Promise<ParsedReceipt> {
-  const ocr = await runOcrOnImage({ uri: imageUri });
-  return parseReceiptText(ocr.text);
+export async function scanReceipt(image: { uri: string; base64?: string }, categories?: Category[]): Promise<ParsedReceipt> {
+  const ocr = await runOcrOnImage(image);
+  return parseReceiptText(ocr.text, categories);
 }
 
 // Parse raw OCR text into a structured receipt (merchant, date, total, items,
 // reconciliation, duplicate fingerprint). No DB write happens here.
-export async function parseReceiptText(ocrText: string): Promise<ParsedReceipt> {
+// Offline (local mode) uses the on-device parser in services/local/receipt.ts;
+// online (cloud mode) delegates to the API.
+export async function parseReceiptText(ocrText: string, categories?: Category[]): Promise<ParsedReceipt> {
+  if (await isLocalMode()) return localParseReceiptText(ocrText, categories || []);
   const data = await api.post<{ merchant: string | null; txn_date: string; total: number | null; line_items: any[]; receipt_fingerprint: string | null; reconciliation: any; duplicate_check: any }>(
     '/api/receipt/parse',
     { ocr_text: ocrText }
@@ -84,5 +97,6 @@ export interface SaveReceiptInput {
 // The confirm screen is the mandatory gate — nothing is written until the
 // user reviews the OCR output and explicitly taps Save.
 export async function saveReceipt(input: SaveReceiptInput): Promise<{ transaction: Transaction; line_items: TransactionLineItem[] }> {
+  if (await isLocalMode()) return localSaveReceipt(input);
   return api.post<{ transaction: Transaction; line_items: TransactionLineItem[] }>('/api/receipt/save', input);
 }

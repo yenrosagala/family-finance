@@ -1,0 +1,11 @@
+fastapi>=0.115
+uvicorn>=0.30
+pillow>=10.0
+pydantic>=2.7
+torch>=2.3
+torchvision>=0.18
+transformers>=5.0
+safetensors>=0.4
+einops>=0.8
+sentencepiece>=0.2
+protobuf>=4.25

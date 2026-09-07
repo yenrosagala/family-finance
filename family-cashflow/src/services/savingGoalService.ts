@@ -1,5 +1,12 @@
 import { api } from './api';
 import { SavingGoal } from '../models';
+import { isLocalMode } from '../core/dataSource';
+import {
+  localGetSavingGoals,
+  localCreateSavingGoal,
+  localUpdateSavingGoal,
+  localDeleteSavingGoal,
+} from './local/repository';
 
 export interface SavingGoalProgress extends SavingGoal {
   account_name: string | null;
@@ -15,6 +22,7 @@ export function formatDateOnly(value: string | null | undefined): string | null 
 }
 
 export async function getSavingGoals(): Promise<SavingGoalProgress[]> {
+  if (await isLocalMode()) return localGetSavingGoals();
   const data = await api.get<{ goals: SavingGoalProgress[] }>('/api/saving-goals');
   return data.goals;
 }
@@ -27,6 +35,7 @@ export interface SavingGoalInput {
 }
 
 export async function createSavingGoal(input: SavingGoalInput): Promise<SavingGoal> {
+  if (await isLocalMode()) return localCreateSavingGoal(input);
   const data = await api.post<{ goal: SavingGoal }>('/api/saving-goals', input);
   return data.goal;
 }
@@ -35,10 +44,12 @@ export async function updateSavingGoal(
   id: string,
   input: Partial<SavingGoalInput>
 ): Promise<SavingGoal> {
+  if (await isLocalMode()) return localUpdateSavingGoal(id, input);
   const data = await api.put<{ goal: SavingGoal }>(`/api/saving-goals/${id}`, input);
   return data.goal;
 }
 
 export async function deleteSavingGoal(id: string): Promise<void> {
+  if (await isLocalMode()) return localDeleteSavingGoal(id);
   await api.del(`/api/saving-goals/${id}`);
 }

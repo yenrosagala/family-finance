@@ -4,7 +4,45 @@ import { authRequired } from '../auth.js';
 import { createHash } from 'crypto';
 import { categorizeText } from '../services/categorizeText.js';
 
+// PaddleOCR-VL microservice (ocr_service/main.py). Image -> recognized text.
+const OCR_SERVICE_URL = process.env.OCR_SERVICE_URL || 'http://127.0.0.1:8008';
+const OCR_TIMEOUT_MS = Number(process.env.OCR_TIMEOUT_MS || 180000);
+
 const router = Router();
+
+// POST /api/receipt/ocr — proxy a receipt photo to the PaddleOCR-VL service.
+// Intentionally NOT authed: it is a stateless image->text utility (mirrors the
+// unauthenticated OCR service) and writes no household data. parse/save below are authed.
+router.post('/ocr', async (req, res) => {
+  const { image_base64 } = req.body || {};
+  if (!image_base64 || typeof image_base64 !== 'string') {
+    return res.status(400).json({ error: 'image_base64 string is required' });
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OCR_TIMEOUT_MS);
+  try {
+    const upstream = await fetch(`${OCR_SERVICE_URL}/ocr`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_base64 }),
+      signal: controller.signal,
+    });
+    const data = await upstream.json();
+    if (!upstream.ok) {
+      const detail = data.detail || data.error || 'OCR service error';
+      return res.status(upstream.status).json({ error: detail });
+    }
+    if (!data.text || !data.text.trim()) {
+      return res.status(502).json({ error: 'OCR service returned no text' });
+    }
+    return res.json({ text: data.text, source: 'paddleocr-vl' });
+  } catch (e) {
+    const msg = e?.name === 'AbortError' ? 'OCR service timed out' : `OCR service unavailable: ${e.message}`;
+    return res.status(503).json({ error: msg });
+  } finally {
+    clearTimeout(timer);
+  }
+});
 
 async function getHouseholdId(userId) {
   const { rows } = await pool.query(
@@ -264,7 +302,10 @@ router.post('/save', authRequired, async (req, res) => {
     }
 
     await client.query('COMMIT');
-    return res.status(201).json({ transaction: txn, line_items: savedLineItems });
+    return res.status(201).json({
+      transaction: { ...txn, amount: Number(txn.amount) },
+      line_items: savedLineItems,
+    });
   } catch (e) {
     await client.query('ROLLBACK');
     return res.status(500).json({ error: e.message });

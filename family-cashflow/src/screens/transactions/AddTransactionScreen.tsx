@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
 import { formatMoney } from '../../core/format';
-import { createTransaction, getAccounts, getCategories } from '../../services/transactionService';
+import { createTransaction, updateTransaction, getTransactions, getAccounts, getCategories } from '../../services/transactionService';
 import { getBudgets, BudgetProgress } from '../../services/budgetService';
 import { getSavingGoals, SavingGoalProgress } from '../../services/savingGoalService';
 import { getInvestments, InvestmentProgress } from '../../services/investmentService';
@@ -20,9 +20,11 @@ import { TRANSACTION_TYPES, TRANSACTION_TYPE_LABELS, TransactionType } from '../
 
 type AddTransactionScreenProps = {
   navigation: any;
+  route?: any;
 };
 
-export default function AddTransactionScreen({ navigation }: AddTransactionScreenProps) {
+export default function AddTransactionScreen({ navigation, route }: AddTransactionScreenProps) {
+  const editingId = route?.params?.transactionId as string | undefined;
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -39,10 +41,43 @@ export default function AddTransactionScreen({ navigation }: AddTransactionScree
   const [investmentId, setInvestmentId] = useState<string | null>(null);
   const [toPerson, setToPerson] = useState('');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(Boolean(editingId));
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (editingId) {
+      loadTransaction(editingId);
+    }
+  }, [editingId]);
+
+  const loadTransaction = async (id: string) => {
+    try {
+      const all = await getTransactions();
+      const tx = all.find((t) => t.id === id);
+      if (!tx) {
+        Alert.alert('Error', 'Transaction not found');
+        navigation.goBack();
+        return;
+      }
+      setType(tx.type);
+      setAmount(String(tx.amount));
+      setNote(tx.note || '');
+      setDate(String(tx.txn_date || '').slice(0, 10) || new Date().toISOString().split('T')[0]);
+      setFromAccountId(tx.from_account_id);
+      setToAccountId(tx.to_account_id);
+      setCategoryId(tx.category_id);
+      setSavingGoalId(tx.saving_goal_id);
+      setInvestmentId(tx.investment_id);
+      setToPerson(tx.to_person || '');
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadCategories();
@@ -95,7 +130,7 @@ export default function AddTransactionScreen({ navigation }: AddTransactionScree
 
     setLoading(true);
     try {
-      await createTransaction({
+      const payload = {
         type,
         amount: parseFloat(amount),
         txn_date: date,
@@ -108,11 +143,17 @@ export default function AddTransactionScreen({ navigation }: AddTransactionScree
         saving_goal_id: type === 'saving' ? savingGoalId : null,
         merchant_name: null,
         receipt_image_url: null,
-        categorization_source: 'manual',
+        categorization_source: 'manual' as const,
         receipt_fingerprint: null,
-      });
+      };
 
-      Alert.alert('Success', 'Transaction added!', [
+      if (editingId) {
+        await updateTransaction(editingId, payload);
+      } else {
+        await createTransaction(payload);
+      }
+
+      Alert.alert('Success', editingId ? 'Transaction updated!' : 'Transaction added!', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error: any) {
@@ -136,7 +177,7 @@ export default function AddTransactionScreen({ navigation }: AddTransactionScree
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Add Transaction</Text>
+        <Text style={styles.title}>{editingId ? 'Edit Transaction' : 'Add Transaction'}</Text>
       </View>
 
       <View style={styles.typeSelector}>
@@ -312,12 +353,18 @@ export default function AddTransactionScreen({ navigation }: AddTransactionScree
         )}
 
         <TouchableOpacity
-          style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+          style={[styles.saveButton, (loading || initialLoading) && styles.saveButtonDisabled]}
           onPress={handleSave}
-          disabled={loading}
+          disabled={loading || initialLoading}
         >
           <Text style={styles.saveButtonText}>
-            {loading ? 'Saving...' : 'Save Transaction'}
+            {loading
+              ? 'Saving...'
+              : initialLoading
+                ? 'Loading...'
+                : editingId
+                  ? 'Save Changes'
+                  : 'Save Transaction'}
           </Text>
         </TouchableOpacity>
       </View>

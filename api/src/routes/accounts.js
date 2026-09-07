@@ -26,7 +26,7 @@ router.get('/', authRequired, async (req, res) => {
       `select * from accounts where household_id = $1 and is_active = true order by name`,
       [householdId]
     );
-    return res.json({ accounts: rows });
+    return res.json({ accounts: rows.map((a) => ({ ...a, balance: Number(a.balance) })) });
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message });
   } finally {

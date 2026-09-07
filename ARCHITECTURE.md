@@ -15,6 +15,7 @@
 - **The API is the single backend**: authenticates users (custom JWT vs `app_users`), and scopes every query by `household_id` in code.
 - **The DB is authoritative for financial logic**: the account-balance sync trigger and (future) aggregations run in Postgres.
 - **OCR + first-pass categorization** happen client-side (adapter ready), but the server re-runs categorization authoritatively.
+- **Each new user chooses their data source at sign-up** (`src/core/dataSource.ts`): **Cloud** — the Supabase topology above, or **Local** — an on-device SQLite mirror (`src/services/local/database.ts` + `repository.ts`) that implements the same core loop (auth, household, accounts, categories, transactions with the same balance-effect semantics, summaries, net worth) against a device-only DB, so the household data never leaves the phone. Local mode disables the network-only modules (budget alerts, saving/investment sync, receipt scanning, reports) and is not available on web. Balance-effect semantics are mirrored 1:1 from the Postgres sync trigger (see §6 table).
 
 ## 2. Auth
 
@@ -105,7 +106,11 @@ Today the API connects as the DB superuser and enforces scoping in code. All tab
 ## 7. Client-Side State & Offline Behavior
 
 - JWT is persisted (expo-secure-store / AsyncStorage) in `src/services/api.ts`.
-- For offline-first behavior beyond the API (queue writes while offline), a local write queue is a **v2 enhancement** (Phase 6) — not built yet.
+- **Two data-source modes** (chosen per user at sign-up in `AuthScreen.tsx`, persisted as `fcf_data_source`):
+  - **Cloud** (default): everything goes through the Express API; online required. JWT + household scoping as described above.
+  - **Local**: `src/services/*Service.ts` branch on `isLocalMode()` to the on-device SQLite repository (`services/local/`) instead of calling the API. Sessions live in AsyncStorage (`fcf_local_session`), passwords are hashed with salted SHA-256 (`expo-crypto`), ids are `Crypto.randomUUID()`, and account balances are applied by the repository's `applyBalanceDelta` (same rules as the Postgres sync trigger, including reverse-on-delete). Saving/investment/budget/net-worth-rollup services, receipt scanning, and reports are unavailable in local mode and throw a friendly "not available in Local mode" error.
+- Local mode data is **device-bound**: there is no cross-device household sharing or invite-join in local mode.
+- For offline-first behavior in Cloud mode (queue writes while offline), a local write queue is a **v2 enhancement** (Phase 6) — not built yet.
 - Live multi-device updates are not yet wired (no realtime/websocket yet); refreshing the dashboard reloads from the API.
 
 ## 8. Non-Functional Requirements

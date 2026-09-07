@@ -15,34 +15,22 @@ import { getCategories, getAccounts } from '../../services/transactionService';
 import { ParsedReceipt, Category, Account } from '../../models';
 import ConfirmReceiptScreen from './ConfirmReceiptScreen';
 
+type PickedImage = { uri: string; base64?: string } | null;
+
 export default function ScanScreen() {
   const [scanning, setScanning] = useState(false);
   const [receipt, setReceipt] = useState<ParsedReceipt | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
 
-  const handleScan = async () => {
-    // Open image picker — camera/library access is handled by expo-image-picker itself
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
-
-    if (result.canceled) {
-      return;
-    }
-    if (!result.assets || result.assets.length === 0) {
-      Alert.alert('No image selected', 'Please select a receipt photo.');
-      return;
-    }
-
-    const imageUri = result.assets[0].uri;
+  // Shared pipeline for both camera and library: image -> OCR -> parse -> confirm.
+  const processImage = async (picked: PickedImage) => {
+    if (!picked) return;
     setScanning(true);
+    // Fetch options first so offline parse can categorize line items locally.
+    const [cats, accs] = await Promise.all([getCategories().catch(() => []), getAccounts().catch(() => [])]);
     try {
-      const parsed = await scanReceipt(imageUri);
-      const [cats, accs] = await Promise.all([getCategories(), getAccounts()]);
+      const parsed = await scanReceipt(picked, cats);
       setReceipt(parsed);
       setCategories(cats);
       setAccounts(accs);
@@ -58,12 +46,45 @@ export default function ScanScreen() {
         reconciliation: { line_items_count: 0, line_items_sum: 0, printed_total: null, is_reconciled: null, discrepancy: null },
         duplicate_check: { is_duplicate: false, existing_transaction_id: null },
       });
-      setCategories(await getCategories().catch(() => []));
-      setAccounts(await getAccounts().catch(() => []));
+      setCategories(cats);
+      setAccounts(accs);
       console.warn('Scan/parse warning:', err.message);
     } finally {
       setScanning(false);
     }
+  };
+
+  const handleTakePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Camera permission needed', 'Allow camera access to take a receipt photo.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.8,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets && result.assets.length > 0 ? result.assets[0] : null;
+    await processImage(asset ? { uri: asset.uri, base64: asset.base64 ?? undefined } : null);
+  };
+
+  const handleChoosePhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.8,
+      base64: true,
+    });
+    if (result.canceled) return;
+    if (!result.assets || result.assets.length === 0) {
+      Alert.alert('No image selected', 'Please select a receipt photo.');
+      return;
+    }
+    const asset = result.assets[0];
+    await processImage({ uri: asset.uri, base64: asset.base64 ?? undefined });
   };
 
   const reset = () => {
@@ -92,19 +113,24 @@ export default function ScanScreen() {
           <Text style={styles.placeholderIcon}>📷</Text>
           <Text style={styles.placeholderTitle}>Receipt OCR</Text>
           <Text style={styles.placeholderText}>
-            Choose a receipt photo from your library. The app reads the text via ML Kit
-            on-device text recognition, extracts the line items, and suggests categories.
+            Take a photo of a receipt with your camera or choose one from your library. The app reads
+            the text with the PaddleOCR-VL model, extracts the line items, and suggests categories.
             You always review before it's saved.
           </Text>
-          <Text style={styles.hint}>Tap 'Scan' to choose a photo.</Text>
+          <Text style={styles.hint}>Works offline — the parsed receipt becomes an expense transaction.</Text>
         </View>
-        <TouchableOpacity style={styles.scanBtn} onPress={handleScan} disabled={scanning}>
-          {scanning ? (
-            <ActivityIndicator color={Colors.surface} />
-          ) : (
-            <Text style={styles.scanBtnText}>Scan receipt</Text>
-          )}
-        </TouchableOpacity>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity style={[styles.scanBtn, { flex: 1 }]} onPress={handleTakePhoto} disabled={scanning}>
+            {scanning ? (
+              <ActivityIndicator color={Colors.surface} />
+            ) : (
+              <Text style={styles.scanBtnText}>Take photo</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.libraryBtn} onPress={handleChoosePhoto} disabled={scanning}>
+            <Text style={styles.libraryBtnText}>Choose photo</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -132,12 +158,22 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     lineHeight: 18,
   },
+  buttonRow: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.md },
   scanBtn: {
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
     padding: Spacing.lg,
     alignItems: 'center',
-    marginTop: Spacing.md,
   },
   scanBtnText: { color: Colors.surface, fontWeight: '700', fontSize: FontSize.md },
+  libraryBtn: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  libraryBtnText: { color: Colors.textSecondary, fontWeight: '600', fontSize: FontSize.md },
 });

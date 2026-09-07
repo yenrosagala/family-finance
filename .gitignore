@@ -29,6 +29,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+# graphify knowledge-graph output (agent scratch)
+graphify-out/
+
 # Supabase CLI local artifacts
 supabase/.branches
 supabase/.temp
