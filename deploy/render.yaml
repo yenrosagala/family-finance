@@ -1,0 +1,15 @@
+# Render Blueprint — click "New + Blueprint" from this branch's repo to deploy.
+# Requires Render -> ) settings edit after first deploy to set the two env vars.
+services:
+  - type: web
+    name: family-finance-api
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: deploy
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false  # set in Render dashboard: your Supabase pooler URL
+      - key: JWT_SECRET
+        sync: false  # set in Render dashboard: same value as api/.env

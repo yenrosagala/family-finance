@@ -1,0 +1,9 @@
+# Context = deploy/ — never ship secrets or junk
+**/.env
+**/node_modules
+**/.venv
+**/.git
+*.log
+*.out
+*.err
+.DS_Store
