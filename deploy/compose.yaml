@@ -1,0 +1,11 @@
+# Local run: docker compose up --build
+# Reads secrets from api/.env (DATABASE_URL, JWT_SECRET).
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    env_file:
+      - api/.env
