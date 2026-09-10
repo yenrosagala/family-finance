@@ -3,7 +3,7 @@ import pool from '../db.js';
 import { authRequired } from '../auth.js';
 import { createHash } from 'crypto';
 import { categorizeText } from '../services/categorizeText.js';
-import { extractDate, extractMerchant, extractTotal, extractLineItems } from '../../../family-cashflow/src/services/local/receiptParser.js';
+import { extractDate, extractMerchant, extractTotal, extractLineItems } from '../services/local/receiptParser.js';
 import { validateMoneyFields } from '../services/validateMoneyFields.js';
 
 // PaddleOCR-VL microservice (ocr_service/main.py). Image -> recognized text.

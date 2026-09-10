@@ -39,7 +39,11 @@ app.use('/api/liabilities', liabilityRoutes);
 app.use('/api/net-worth', netWorthRoutes);
 app.use('/api/reports', reportRoutes);
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Family Finance API listening on http://localhost:${PORT}`);
-});
+export default app;
+
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => {
+    console.log(`Family Finance API listening on http://localhost:${PORT}`);
+  });
+}

@@ -8,7 +8,7 @@
 
 import { GLOBAL_DICTIONARY } from '../data/globalDictionary.js';
 import { classifyBayes, trainBayes } from '../ml/classifier.js';
-import { fuzzyMatch } from '../../../family-cashflow/src/services/fuzzyMatch.js';
+import { fuzzyMatch } from './fuzzyMatch.js';
 
 // ML decision threshold (log-likelihood margin) — fires only when the model is
 // genuinely confident, to avoid noisy suggestions near ties.

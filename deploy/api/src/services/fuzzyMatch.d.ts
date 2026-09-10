@@ -1,0 +1,1 @@
+export function fuzzyMatch(keyword: string, target: string): number;
