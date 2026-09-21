@@ -3,7 +3,7 @@
 > Full detail in `ARCHITECTURE.md`. This is the fast-lookup version for active development.
 
 ## Stack
-Expo SDK 57 (React Native 0.86 + TypeScript) → Express API (`api/`) → Hosted Supabase Postgres (session pooler, port 6543). Auth = custom JWT vs `app_users` (bcrypt). OCR via Expo Camera (on-device intent, adapter swappable).
+Expo SDK 57 (React Native 0.86 + TypeScript) → Express API (`api/`) → Hosted Supabase Postgres (session pooler, port 5432). Auth = custom JWT vs `app_users` (bcrypt, master DB). OCR via a server-side PaddleOCR-VL service (`ocr_service/`), proxied by `POST /api/receipt/ocr` (photo → text); parsing/categorization run in the API (`POST /api/receipt/parse`).
 
 ## Transaction types & balance effect
 
@@ -24,12 +24,12 @@ Expo SDK 57 (React Native 0.86 + TypeScript) → Express API (`api/`) → Hosted
 ## Categorization lookup order
 
 1. `item_dictionary` exact match (household)
-2. `item_dictionary` fuzzy match (household)
-3. Global default dictionary (bundled asset)
-4. **ML Naive Bayes classifier** (`api/src/ml/classifier.js`) — trained from global dictionary + household dictionary weighted by confirmation/correction counts; fires only when confident (log-likelihood margin ≥ 0.35), returns `source: 'ml'`
-5. Fallback → "Uncategorized", flagged in confirm screen
+2. `item_dictionary` fuzzy match (household, top-100 by confidence, score ≥ 0.6)
+3. Fallback → "Uncategorized", flagged in confirm screen
 
-Confidence rises on user confirm, drops and re-learns on user correction. The ML classifier learns the same way: each correction updates `item_dictionary`, which retrains the model on the next call.
+`api/src/services/categorizeText.js` runs this pipeline in one household-dictionary query. Confidence rises on user confirm, drops/re-learns on user correction (`/api/categorize/correction` updates `item_dictionary`).
+
+The bundled `GLOBAL_DICTIONARY` (`api/src/data/globalDictionary.js`) is no longer used in this lookup chain — it stays as a reference seed only.
 
 ## Net worth formula
 
@@ -45,8 +45,10 @@ Saving goals are NOT counted separately — they're a label on a linked account 
 
 ## Key tables (see `schema.sql` for full DDL)
 
-`households` · `household_members` · `accounts` · `categories` · `transactions` · `transaction_line_items` · `item_dictionary` · `budgets` · `saving_goals` · `investments` · `assets` · `liabilities` · `net_worth_snapshots`
+**Master DB (`public` schema, `master-schema.sql`):** `app_users` · `households_registry` — auth credentials and the household→schema registry. No household financial data lives here.
+
+**Each household's own schema (`hh_<slug>_<suffix>`, provisioned from `schema.sql`):** `households` · `household_members` · `accounts` · `categories` · `transactions` · `transaction_line_items` · `item_dictionary` · `budgets` · `saving_goals` · `investments` · `assets` · `liabilities` · `net_worth_snapshots`
 
 ## Security model
 
-Every table is scoped by `household_id`. `supabase/rls_policies.sql` defines RLS that checks the requester is in `household_members` for that household. Today the API connects as the DB superuser and re-enforces scoping in code; switch to least-privilege DB roles and verify cross-household tests before production. Admins can edit/delete anyone's transactions in the household; regular members can only edit/delete their own.
+Multi-tenant isolation is schema-per-household: `tenantMiddleware` resolves a user's household from `households_registry` (master DB), then every query runs against that household's dedicated Postgres schema via `req.householdDb` (search_path pinned in `db.js`). Each household's tables are scoped by `household_id`; `supabase/rls_policies.sql` defines RLS that checks the requester is in `household_members` for that household. Today the API connects as the DB superuser and re-enforces scoping in code; switch to least-privilege DB roles and verify cross-household tests (see `PRODUCTION_READY_CHECKLIST.md`) before production. Admins can edit/delete anyone's transactions in the household; regular members can only edit/delete their own.

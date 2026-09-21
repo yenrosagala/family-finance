@@ -38,9 +38,9 @@ A shared, low-friction family finance app where:
 
 - **Expo / React Native** (TypeScript), cross-platform, Android-first, runs in Expo Go.
 - **Express API bridge** (`api/`) in front of hosted **Supabase Postgres** — the client never talks to the DB directly; auth is a custom JWT against `app_users`.
-- **On-device OCR** (Expo Camera) for privacy + offline use + zero API cost (adapter ready; real camera wiring pending device testing).
+- **Server-side OCR** (PaddleOCR-VL in `ocr_service/`) proxied through the API (`POST /api/receipt/ocr`), with parsing/categorization in the API — camera-agnostic; the client sends a photo and gets back an editable confirm step before anything is saved.
 - **Postgres** backend — chosen over Firebase for relational fit (financial statements are SQL-shaped) and SQL aggregation for reports/net worth.
-- **Category learning via dictionary + fuzzy match + user corrections**, not a trained ML model — avoids needing a labeled dataset upfront, fully explainable, works offline.
+- **Category learning via dictionary + fuzzy match + user corrections**, not a trained ML model — avoids needing a labeled dataset upfront, fully explainable.
 - **7 transaction types**: income, expense, transfer (internal), transfer_out/in (external), investment, saving — chosen so internal money movement never pollutes the income/expense net cashflow number.
 
 ## 7. Success Criteria (subjective, family-scale — not commercial metrics)

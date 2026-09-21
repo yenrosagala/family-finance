@@ -25,10 +25,8 @@ Instructions for AI coding agents (Claude Code, Cursor, etc.) working in this re
 
 ## Code Style / Structure
 
-## Code Style / Structure
-
 - Follow the `src/` structure in `DEVELOPMENT.md` against `family-cashflow/src/` (`core/`, `constants/`, `models/`, `services/`, `screens/`, `navigation/`, `widgets/`) — place new files accordingly rather than creating ad-hoc top-level folders. Backend routes go in `api/src/routes/`.
-- Categorization/matching logic lives in `services/categorizationService.ts` — keep OCR parsing (`services/receiptService.ts` / `ocr_service`) separate from categorization logic so each can be tested independently.
+- Categorization/matching logic lives server-side in `api/src/services/categorizeText.js`; OCR parsing lives in `api/src/routes/receipt.js` (parser) with the OCR worker in `ocr_service/`. Keep these separate so each can be tested independently.
 - Prefer Postgres for aggregation logic (SUM/GROUP BY for reports, net worth) over pulling all rows and computing client-side — this was a deliberate reason for choosing Postgres over Firestore.
 
 ## When Adding a Feature
@@ -39,7 +37,7 @@ Instructions for AI coding agents (Claude Code, Cursor, etc.) working in this re
 
 ## Testing Expectations
 
-- Any change to categorization matching logic needs a unit test covering: exact match, fuzzy match, fallback to global dictionary, fallback to "Uncategorized."
+- Any change to categorization matching logic needs a unit test covering: exact match, fuzzy match, fallback to "Uncategorized" (the pipeline in `api/src/services/categorizeText.js` is exact → fuzzy → fallback; the global dictionary is not part of the lookup chain).
 - Any change to the balance-sync trigger needs a test covering all 7 transaction types, plus edit and delete (not just insert).
 
 ---

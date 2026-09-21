@@ -36,7 +36,7 @@ Verify: `curl http://127.0.0.1:4000/health` → `{"ok":true}`.
   Every household then gets its own Postgres schema, created on demand inside
   this same database when an admin registers (`api/src/services/provision.js`
   runs `api/src/db/schema.sql` inside a fresh `hh_<slug>_<suffix>` schema and
-  registers it). See `TENANT_MIGRATION.md` at the repo root for the full
+  registers it). See `ARCHITECTURE.md` §2–§3 for the full
   request-path walkthrough (`tenantMiddleware` → `req.householdDb`).
 - `JWT_SECRET` — same value as in the original `api/.env`
 
@@ -76,5 +76,6 @@ Postgres works.
 ## Re-syncing `api/` after backend changes
 `deploy/api/` is a snapshot of the root `api/`. After changing backend code,
 re-copy api source into the snapshot so the deploy image ships the same code,
-then rebuild. Both `deploy/api/` and the root `api/` include the boot-time
-schema bootstrap (`api/src/db/bootstrap.js` + `schema.sql`).
+then rebuild. There is no boot-time schema bootstrap — the master schema is
+applied once via `db/master-schema.sql` (by `deploy.sh` or `psql`), and each
+household schema is provisioned from `schema.sql` at register time.

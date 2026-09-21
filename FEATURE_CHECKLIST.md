@@ -22,19 +22,17 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 
 ## Phase 2 — Receipt Scanning
 
-- 🟨 Camera capture + OCR integration from device (adapter + mock ready; real camera/OCR wiring pending device testing)
 - 🟨 Server-side OCR service (`ocr_service/`) — PaddleOCR-VL loads under transformers 5.x with rope/`cache_position` compat; `/ocr` endpoint live; **vision output quality unresolved** (model emits ~1 spurious token per image) → not wired as the scan default until it reads real text
-- ✅ App wants server OCR first, fallback to local parse — `POST /api/receipt/ocr` (intentionally unauthenticated proxy → FastAPI)
+- ✅ Server-first OCR proxy — `POST /api/receipt/ocr` (intentionally unauthenticated proxy → FastAPI)
 - ✅ Receipt parsing (merchant, date, total, line items) — backend `POST /api/receipt/parse`
-- ✅ Global default item dictionary (bundled JSON, common Indonesian retail items) — seeded into every household
-- ✅ Household item dictionary + exact/fuzzy matching — backend `/api/categorize` + `categorizationService.ts`
-- ✅ Confirm screen (editable categories, confidence indicators) — `ConfirmReceiptScreen.tsx`, no auto-save
+- ✅ Global default item dictionary (bundled JSON, common Indonesian retail items) — `api/src/data/globalDictionary.js`
+- ✅ Household item dictionary + exact/fuzzy matching — backend `/api/categorize` + `api/src/services/categorizeText.js`
+- ✅ Confirm-before-save enforced at the API: `POST /api/receipt/save` only runs after the parse result is reviewed; no auto-save
 - ✅ Auto-dedupe exact consecutive duplicate OCR lines / token lines
 - ✅ Reconciliation check (line items sum vs printed total)
 - ✅ Duplicate-receipt fingerprint check + warning
 - ✅ Correction feedback loop (updates item_dictionary confidence/counts) — `/api/categorize/correction`
-- ✅ ML category classifier (Naive Bayes) as extra signal in the categorize pipeline — `api/src/ml/classifier.js`, fires before fallback when confident (margin ≥ 0.35); trains from global + household dictionary weighted by confirm/correction counts, unit-tested (`node --test`)
-- ⬜ Receipt image storage (hosted Supabase Storage, household-scoped)
+- ⬜ In-app scan UI (camera capture → OCR → confirm screen) — client-side camera/scan screens were removed; the API endpoints are ready for a UI to call
 
 ## Phase 3 — Budgeting
 
@@ -59,10 +57,12 @@ Status legend: ⬜ not started · 🟨 in progress · ✅ done
 - ✅ Assets/liabilities CRUD (property, vehicles, loans, etc.) — `AssetsScreen`/`LiabilitiesScreen` + `/api/assets` + `/api/liabilities`, wired into More + navigator
 - ✅ Net worth screen: total, assets/liabilities breakdown, snapshot history — `NetWorthScreen.tsx` (pulled from companion checkout) + `/api/net-worth`
 - ⬜ Monthly net worth snapshot scheduled job
-- ⬜ Reports screen: Income Statement (P&L) view, date range picker
-- ⬜ Reports screen: Balance Sheet view
-- ⬜ Period comparison mode (this month vs last month)
-- ⬜ PDF export of statements
+- ✅ Monthly financial statement export (income statement + category detail, XLSX/PDF) — `GET /api/reports/export` + `ExportReportScreen`
+- ✅ Reports backend API — `GET /api/reports/pl` (P&L by category), `/balance-sheet`, `/compare` (month-over-month deltas)
+- ⬜ Reports UI screen: Income Statement (P&L) view, date range picker
+- ⬜ Reports UI screen: Balance Sheet view
+- ⬜ Period comparison UI (this month vs last month)
+- ⬜ PDF export of statements (backend supports PDF; client export currently XLSX-first)
 
 ## Phase 6 — Polish & Family Features
 
