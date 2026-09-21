@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -10,30 +11,41 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
-import { getUserHousehold, getHouseholdMembers } from '../../services/authService';
+import { getUserHousehold, getHouseholdMembers, getCurrentUser, refreshInviteCode } from '../../services/authService';
 import { Household, HouseholdMember } from '../../models';
+import { useI18n } from '../../core/i18n';
 
 type MemberRow = HouseholdMember & { email?: string };
 
 export default function HouseholdMembersScreen() {
+  const isFocused = useIsFocused();
+  const { t } = useI18n();
   const [household, setHousehold] = useState<Household | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [house, mems] = await Promise.all([getUserHousehold(), getHouseholdMembers()]);
+      const [house, mems, me] = await Promise.all([
+        getUserHousehold(),
+        getHouseholdMembers(),
+        getCurrentUser(),
+      ]);
       setHousehold(house);
       setMembers(mems);
+      setIsAdmin(
+        mems.some((m) => m.role === 'admin' && m.user_id === me?.id)
+      );
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     }
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (isFocused) load();
+  }, [load, isFocused]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -48,6 +60,24 @@ export default function HouseholdMembersScreen() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const refreshCode = () => {
+    if (!isAdmin) return;
+    Alert.alert(t('home.refresh_code_title'), t('home.refresh_code_msg'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('home.refresh_code'),
+        onPress: async () => {
+          try {
+            const code = await refreshInviteCode();
+            setHousehold((h) => (h ? { ...h, invite_code: code } : h));
+          } catch (e) {
+            Alert.alert(t('common.error'), (e as Error).message);
+          }
+        },
+      },
+    ]);
+  };
+
   return (
     <FlatList
       style={styles.container}
@@ -57,37 +87,43 @@ export default function HouseholdMembersScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       ListHeaderComponent={
         <>
-          <Text style={styles.title}>{household?.name ?? 'Household'}</Text>
+          <Text style={styles.title}>{household?.name ?? t('home.member')}</Text>
 
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Invite code</Text>
+            <Text style={styles.cardLabel}>{t('home.invite_code')}</Text>
             <Text style={styles.code}>{household?.invite_code ?? '—'}</Text>
-            <TouchableOpacity
-              style={styles.copyButton}
-              onPress={copyCode}
-              disabled={!household?.invite_code}
-            >
-              <Text style={styles.copyText}>{copied ? 'Copied!' : 'Copy code'}</Text>
-            </TouchableOpacity>
+            <View style={styles.codeActions}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={copyCode}
+                disabled={!household?.invite_code}
+              >
+                <Text style={styles.copyText}>{copied ? t('home.copied') : t('home.copy_code')}</Text>
+              </TouchableOpacity>
+              {isAdmin ? (
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.refreshButton]}
+                  onPress={refreshCode}
+                  disabled={!household?.invite_code}
+                >
+                  <Text style={styles.refreshText}>{t('home.refresh_code')}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
 
           <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>How to add a member</Text>
-            <Text style={styles.infoText}>
-              1. Share this invite code with a family member.{'\n'}
-              2. They create an account in the app and choose &quot;Join Household&quot;.{'\n'}
-              3. They enter this code — done. They share the same accounts, categories, and
-              transactions.
-            </Text>
+            <Text style={styles.infoTitle}>{t('home.how_to')}</Text>
+            <Text style={styles.infoText}>{t('home.how_to_text')}</Text>
           </View>
 
-          <Text style={styles.sectionTitle}>Members</Text>
+          <Text style={styles.sectionTitle}>{t('home.members')}</Text>
         </>
       }
       renderItem={({ item }) => (
         <View style={styles.row}>
           <View style={styles.rowInfo}>
-            <Text style={styles.rowName}>{item.display_name || 'Member'}</Text>
+            <Text style={styles.rowName}>{item.display_name || t('home.member')}</Text>
             {item.email ? <Text style={styles.rowEmail}>{item.email}</Text> : null}
           </View>
           <View style={[styles.rolePill, item.role === 'admin' && styles.rolePillAdmin]}>
@@ -97,13 +133,13 @@ export default function HouseholdMembersScreen() {
                 item.role === 'admin' && styles.roleTextAdmin,
               ]}
             >
-              {item.role === 'admin' ? 'Admin' : 'Member'}
+              {item.role === 'admin' ? t('home.admin') : t('home.member')}
             </Text>
           </View>
         </View>
       )}
       ListEmptyComponent={
-        <Text style={styles.empty}>No members loaded yet.</Text>
+        <Text style={styles.empty}>{t('home.empty')}</Text>
       }
       ListFooterComponent={<View style={{ height: Spacing.xl }} />}
     />
@@ -129,13 +165,16 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     marginBottom: Spacing.md,
   },
-  copyButton: {
+  copyText: { color: Colors.surface, fontWeight: '600', fontSize: FontSize.md },
+  codeActions: { flexDirection: 'row', gap: Spacing.sm },
+  actionButton: {
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,
   },
-  copyText: { color: Colors.surface, fontWeight: '600', fontSize: FontSize.md },
+  refreshButton: { backgroundColor: Colors.border },
+  refreshText: { color: Colors.text, fontWeight: '600', fontSize: FontSize.md },
   infoCard: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,

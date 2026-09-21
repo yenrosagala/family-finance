@@ -6,19 +6,40 @@ import {
   localSignIn,
   localSignOut,
   localGetCurrentUser,
-  localCreateHousehold,
-  localJoinHousehold,
   localGetUserHousehold,
   localGetHouseholdMembers,
+  localRefreshInviteCode,
 } from './local/repository';
 
 type AuthResponse = { token: string; user: { id: string; email: string; display_name: string } };
 
-export async function signUp(email: string, password: string, displayName: string) {
+export async function signUp(
+  email: string,
+  password: string,
+  displayName: string,
+  household: { mode: 'create'; householdName: string } | { mode: 'join'; inviteCode: string }
+) {
   if (await isLocalMode()) {
+    // Local mode always creates a fresh household on sign-up; joining isn't
+    // supported offline (single-device storage), so household.mode is ignored.
     return localSignUp(email, password, displayName);
   }
-  const data = await api.post<AuthResponse>('/api/auth/register', { email, password, displayName });
+  if (household.mode === 'create') {
+    const data = await api.post<AuthResponse>('/api/auth/register', {
+      email,
+      password,
+      displayName,
+      householdName: household.householdName,
+    });
+    await setToken(data.token);
+    return data.user;
+  }
+  const data = await api.post<AuthResponse>('/api/auth/join', {
+    email,
+    password,
+    displayName,
+    inviteCode: household.inviteCode,
+  });
   await setToken(data.token);
   return data.user;
 }
@@ -54,22 +75,6 @@ export async function getCurrentUser() {
   }
 }
 
-export async function createHousehold(name: string): Promise<Household> {
-  if (await isLocalMode()) {
-    return localCreateHousehold(name);
-  }
-  const data = await api.post<{ household: Household }>('/api/household', { name });
-  return data.household;
-}
-
-export async function joinHousehold(inviteCode: string): Promise<Household> {
-  if (await isLocalMode()) {
-    return localJoinHousehold();
-  }
-  const data = await api.post<{ household: Household }>('/api/household/join', { inviteCode });
-  return data.household;
-}
-
 export async function getUserHousehold(): Promise<Household | null> {
   if (await isLocalMode()) {
     return localGetUserHousehold();
@@ -84,4 +89,15 @@ export async function getHouseholdMembers(): Promise<HouseholdMember[]> {
   }
   const data = await api.get<{ members: HouseholdMember[] }>('/api/household/members');
   return data.members;
+}
+
+export async function refreshInviteCode(): Promise<string> {
+  if (await isLocalMode()) {
+    return localRefreshInviteCode();
+  }
+  const data = await api.post<{ inviteCode: string }>(
+    '/api/household/invite-code/refresh',
+    {}
+  );
+  return data.inviteCode;
 }

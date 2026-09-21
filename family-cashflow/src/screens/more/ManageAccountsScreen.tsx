@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -10,12 +11,15 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
-import { formatMoney } from '../../core/format';
+import { formatMoney, parseAmount } from '../../core/format';
 import { getAccounts, createAccount, deleteAccount } from '../../services/transactionService';
 import { Account } from '../../models';
-import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, AccountType } from '../../constants/categories';
+import { ACCOUNT_TYPES, AccountType } from '../../constants/categories';
+import { useI18n } from '../../core/i18n';
 
 export default function ManageAccountsScreen() {
+  const isFocused = useIsFocused();
+  const { t } = useI18n();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('cash');
@@ -27,13 +31,13 @@ export default function ManageAccountsScreen() {
     try {
       setAccounts(await getAccounts());
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     }
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (isFocused) load();
+  }, [load, isFocused]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -43,12 +47,12 @@ export default function ManageAccountsScreen() {
 
   const handleAdd = async () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Enter an account name');
+      Alert.alert(t('common.error'), t('acc.err_name'));
       return;
     }
     setLoading(true);
     try {
-      const balance = parseFloat(openingBalance);
+      const balance = parseAmount(openingBalance);
       await createAccount({
         name: name.trim(),
         type,
@@ -58,7 +62,7 @@ export default function ManageAccountsScreen() {
       setOpeningBalance('');
       await load();
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -66,19 +70,19 @@ export default function ManageAccountsScreen() {
 
   const handleDelete = (account: Account) => {
     Alert.alert(
-      'Delete Account',
-      `Delete "${account.name}"? Its transactions are kept, but it won't accept new ones.`,
+      t('acc.delete_title'),
+      t('acc.delete_msg', { name: account.name }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
               await deleteAccount(account.id);
               await load();
             } catch (e) {
-              Alert.alert('Error', (e as Error).message);
+              Alert.alert(t('common.error'), (e as Error).message);
             }
           },
         },
@@ -99,42 +103,42 @@ export default function ManageAccountsScreen() {
             <View style={styles.addCard}>
               <TextInput
                 style={styles.input}
-                placeholder="Account name (e.g. Bank BCA)"
+                placeholder={t('acc.name_placeholder')}
                 placeholderTextColor={Colors.textMuted}
                 value={name}
                 onChangeText={setName}
               />
               <TextInput
                 style={styles.input}
-                placeholder="Opening balance (e.g. 1000000)"
+                placeholder={t('acc.opening_placeholder')}
                 placeholderTextColor={Colors.textMuted}
                 value={openingBalance}
                 onChangeText={setOpeningBalance}
                 keyboardType="numeric"
               />
               <View style={styles.chipRow}>
-                {ACCOUNT_TYPES.map((t) => (
+                {ACCOUNT_TYPES.map((ty) => (
                   <TouchableOpacity
-                    key={t}
-                    style={[styles.chip, type === t && styles.chipActive]}
-                    onPress={() => setType(t)}
+                    key={ty}
+                    style={[styles.chip, type === ty && styles.chipActive]}
+                    onPress={() => setType(ty)}
                   >
-                    <Text style={[styles.chipText, type === t && styles.chipTextActive]}>
-                      {ACCOUNT_TYPE_LABELS[t]}
+                    <Text style={[styles.chipText, type === ty && styles.chipTextActive]}>
+                      {t(`atype.${ty}`)}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
               <TouchableOpacity style={styles.addButton} onPress={handleAdd} disabled={loading}>
-                <Text style={styles.addButtonText}>{loading ? 'Adding...' : 'Add Account'}</Text>
+                <Text style={styles.addButtonText}>{loading ? t('common.saving') : t('acc.add')}</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Combined balance</Text>
+              <Text style={styles.totalLabel}>{t('acc.combined')}</Text>
               <Text style={styles.totalAmount}>{formatMoney(total)}</Text>
             </View>
             {accounts.length === 0 && (
-              <Text style={styles.empty}>No accounts yet. Add your first one above.</Text>
+              <Text style={styles.empty}>{t('acc.empty')}</Text>
             )}
           </>
         }
@@ -143,7 +147,7 @@ export default function ManageAccountsScreen() {
             <View style={styles.rowInfo}>
               <Text style={styles.rowName}>{item.name}</Text>
               <Text style={styles.rowType}>
-                {ACCOUNT_TYPE_LABELS[item.type as AccountType] ?? item.type}
+                {t(`atype.${item.type}`).startsWith('atype.') ? item.type : t(`atype.${item.type}`)}
               </Text>
             </View>
             <Text style={styles.rowBalance}>{formatMoney(item.balance)}</Text>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -11,22 +12,17 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
-import { formatMoney } from '../../core/format';
+import { formatMoney, parseAmount } from '../../core/format';
 import { getInvestments, createInvestment, updateInvestment, deleteInvestment, InvestmentProgress } from '../../services/investmentService';
 import { getAccounts, createTransaction } from '../../services/transactionService';
 import { Account } from '../../models';
+import { useI18n } from '../../core/i18n';
 
 const TYPES = ['stocks', 'mutual_fund', 'gold', 'crypto', 'property', 'other'];
-const TYPE_LABELS: Record<string, string> = {
-  stocks: 'Stocks',
-  mutual_fund: 'Mutual Fund',
-  gold: 'Gold',
-  crypto: 'Crypto',
-  property: 'Property',
-  other: 'Other',
-};
 
 export default function InvestmentsScreen() {
+  const isFocused = useIsFocused();
+  const { t } = useI18n();
   const [investments, setInvestments] = useState<InvestmentProgress[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -56,13 +52,13 @@ export default function InvestmentsScreen() {
       setInvestments(invData);
       setAccounts(accountData);
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     }
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (isFocused) load();
+  }, [load, isFocused]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -88,23 +84,25 @@ export default function InvestmentsScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Enter a name');
+      Alert.alert(t('common.error'), t('inv.err_name'));
       return;
     }
     setSaving(true);
     try {
       if (editing) {
         // Editing just metadata + optional current value mark-to-market.
-        const cv = startingValue.trim() ? Number(startingValue) : undefined;
+        const cvRaw = parseAmount(startingValue);
+        const cv = startingValue.trim() && Number.isFinite(cvRaw) ? cvRaw : undefined;
         await updateInvestment(editing.id, { name: name.trim(), type, current_value: cv });
       } else {
-        const cv = startingValue.trim() ? Number(startingValue) : undefined;
+        const cvRaw = parseAmount(startingValue);
+        const cv = startingValue.trim() && Number.isFinite(cvRaw) ? cvRaw : undefined;
         await createInvestment({ name: name.trim(), type, current_value: Number.isFinite(cv) ? cv : 0 });
       }
       setEditVisible(false);
       await load();
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     } finally {
       setSaving(false);
     }
@@ -117,9 +115,9 @@ export default function InvestmentsScreen() {
   };
 
   const handleMarket = async () => {
-    const value = Number(marketValue);
-    if (!marketGoal || !value || value < 0) {
-      Alert.alert('Error', 'Enter a valid current value');
+    const value = parseAmount(marketValue);
+    if (!marketGoal || !Number.isFinite(value) || value < 0) {
+      Alert.alert(t('common.error'), t('inv.err_value'));
       return;
     }
     setSaving(true);
@@ -128,7 +126,7 @@ export default function InvestmentsScreen() {
       setMarketVisible(false);
       await load();
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     } finally {
       setSaving(false);
     }
@@ -142,9 +140,9 @@ export default function InvestmentsScreen() {
   };
 
   const handleContribute = async () => {
-    const amount = Number(contribAmount);
-    if (!contribGoal || !amount || amount <= 0 || !contribFromAccount) {
-      Alert.alert('Error', 'Enter a valid amount and choose an account');
+    const amount = parseAmount(contribAmount);
+    if (!contribGoal || !Number.isFinite(amount) || amount <= 0 || !contribFromAccount) {
+      Alert.alert(t('common.error'), t('inv.err_contribute'));
       return;
     }
     setSaving(true);
@@ -168,24 +166,24 @@ export default function InvestmentsScreen() {
       setContribVisible(false);
       await load();
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = (inv: InvestmentProgress) => {
-    Alert.alert('Delete investment', `Remove "${inv.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('inv.delete_title'), t('inv.delete_msg', { name: inv.name }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deleteInvestment(inv.id);
             await load();
           } catch (e) {
-            Alert.alert('Error', (e as Error).message);
+            Alert.alert(t('common.error'), (e as Error).message);
           }
         },
       },
@@ -199,29 +197,29 @@ export default function InvestmentsScreen() {
         <View style={styles.rowTop}>
           <View style={styles.rowLeft}>
             <Text style={styles.rowName}>{item.name}</Text>
-            <Text style={styles.rowType}>{TYPE_LABELS[item.type] || item.type}</Text>
+            <Text style={styles.rowType}>{t(`itype.${item.type}`).startsWith('itype.') ? item.type : t(`itype.${item.type}`)}</Text>
           </View>
           <Text style={[styles.rowGain, { color: gainColor }]}>
             {item.gain_loss >= 0 ? '+' : ''}{formatMoney(item.gain_loss)} ({(item.gain_loss_pct * 100).toFixed(1)}%)
           </Text>
         </View>
         <View style={styles.valueRow}>
-          <Text style={styles.valueLabel}>Current value</Text>
+          <Text style={styles.valueLabel}>{t('inv.current_value')}</Text>
           <Text style={styles.valueAmount}>{formatMoney(item.current_value)}</Text>
         </View>
-        <Text style={styles.investedText}>Invested: {formatMoney(item.total_invested)}</Text>
+        <Text style={styles.investedText}>{t('inv.invested', { amt: formatMoney(item.total_invested) })}</Text>
         <View style={styles.rowButtons}>
           <TouchableOpacity style={[styles.smallButton, styles.primaryBtn]} onPress={() => openContribute(item)}>
-            <Text style={styles.primaryBtnText}>Contribute</Text>
+            <Text style={styles.primaryBtnText}>{t('inv.contribute')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.smallButton, styles.primaryBtn, { backgroundColor: Colors.secondary }]} onPress={() => openMarket(item)}>
-            <Text style={styles.primaryBtnText}>Update value</Text>
+            <Text style={styles.primaryBtnText}>{t('inv.update_value')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.smallButton, styles.editBtn]} onPress={() => openEdit(item)}>
-            <Text style={styles.editBtnText}>Edit</Text>
+            <Text style={styles.editBtnText}>{t('common.edit')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.smallButton, styles.deleteBtn]} onPress={() => handleDelete(item)}>
-            <Text style={styles.deleteBtnText}>Delete</Text>
+            <Text style={styles.deleteBtnText}>{t('common.delete')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -235,11 +233,11 @@ export default function InvestmentsScreen() {
         keyExtractor={(inv) => inv.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
-          investments.length === 0 ? <Text style={styles.empty}>No investments yet. Add one to start tracking.</Text> : null
+          investments.length === 0 ? <Text style={styles.empty}>{t('inv.empty')}</Text> : null
         }
         ListFooterComponent={
           <TouchableOpacity style={styles.addButton} onPress={openAdd}>
-            <Text style={styles.addButtonText}>+ New Investment</Text>
+            <Text style={styles.addButtonText}>+ {t('inv.new')}</Text>
           </TouchableOpacity>
         }
         renderItem={renderItem}
@@ -250,19 +248,19 @@ export default function InvestmentsScreen() {
       <Modal visible={editVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>{editing ? 'Edit Investment' : 'New Investment'}</Text>
-            <TextInput style={styles.input} placeholder="Name (e.g. Index Fund)" placeholderTextColor={Colors.textMuted} value={name} onChangeText={setName} />
-            <Text style={styles.label}>Type</Text>
+            <Text style={styles.modalTitle}>{editing ? t('inv.edit') : t('inv.new')}</Text>
+            <TextInput style={styles.input} placeholder={t('inv.name_placeholder')} placeholderTextColor={Colors.textMuted} value={name} onChangeText={setName} />
+            <Text style={styles.label}>{t('inv.type')}</Text>
             <View style={styles.chipWrap}>
-              {TYPES.map((t) => (
-                <TouchableOpacity key={t} style={[styles.chip, type === t && styles.chipActive]} onPress={() => setType(t)}>
-                  <Text style={[styles.chipText, type === t && styles.chipTextActive]}>{TYPE_LABELS[t]}</Text>
+              {TYPES.map((ty) => (
+                <TouchableOpacity key={ty} style={[styles.chip, type === ty && styles.chipActive]} onPress={() => setType(ty)}>
+                  <Text style={[styles.chipText, type === ty && styles.chipTextActive]}>{t(`itype.${ty}`)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <TextInput
               style={styles.input}
-              placeholder={editing ? 'Current value' : 'Starting value (optional)'}
+              placeholder={editing ? t('inv.current_value') : t('inv.starting_placeholder')}
               placeholderTextColor={Colors.textMuted}
               keyboardType="numeric"
               value={startingValue}
@@ -270,10 +268,10 @@ export default function InvestmentsScreen() {
             />
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setEditVisible(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-                <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save'}</Text>
+                <Text style={styles.saveText}>{saving ? t('common.saving') : t('common.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -284,14 +282,14 @@ export default function InvestmentsScreen() {
       <Modal visible={marketVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Update value — {marketGoal?.name}</Text>
-            <TextInput style={styles.input} placeholder="Current value" placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={marketValue} onChangeText={setMarketValue} autoFocus />
+            <Text style={styles.modalTitle}>{t('inv.update_title', { name: marketGoal?.name ?? '' })}</Text>
+            <TextInput style={styles.input} placeholder={t('inv.current_value')} placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={marketValue} onChangeText={setMarketValue} autoFocus />
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setMarketVisible(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={handleMarket} disabled={saving}>
-                <Text style={styles.saveText}>{saving ? 'Saving...' : 'Update'}</Text>
+                <Text style={styles.saveText}>{saving ? t('common.saving') : t('inv.update')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -302,9 +300,9 @@ export default function InvestmentsScreen() {
       <Modal visible={contribVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Contribute to {contribGoal?.name}</Text>
-            <TextInput style={styles.input} placeholder="Amount" placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={contribAmount} onChangeText={setContribAmount} autoFocus />
-            <Text style={styles.label}>From account</Text>
+            <Text style={styles.modalTitle}>{t('inv.contribute_to', { name: contribGoal?.name ?? '' })}</Text>
+            <TextInput style={styles.input} placeholder={t('common.amount')} placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={contribAmount} onChangeText={setContribAmount} autoFocus />
+            <Text style={styles.label}>{t('inv.from_account')}</Text>
             <View style={styles.chipWrap}>
               {accounts.map((a) => (
                 <TouchableOpacity key={a.id} style={[styles.chip, contribFromAccount === a.id && styles.chipActive]} onPress={() => setContribFromAccount(a.id)}>
@@ -314,10 +312,10 @@ export default function InvestmentsScreen() {
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setContribVisible(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={handleContribute} disabled={saving}>
-                <Text style={styles.saveText}>{saving ? 'Saving...' : 'Contribute'}</Text>
+                <Text style={styles.saveText}>{saving ? t('common.saving') : t('inv.contribute')}</Text>
               </TouchableOpacity>
             </View>
           </View>

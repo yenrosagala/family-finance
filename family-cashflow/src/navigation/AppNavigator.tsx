@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, View, StyleSheet } from 'react-native';
 import { Colors } from '../core/theme';
+import { useI18n } from '../core/i18n';
 
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
 import TransactionsScreen from '../screens/transactions/TransactionsScreen';
@@ -16,8 +17,10 @@ import HouseholdMembersScreen from '../screens/more/HouseholdMembersScreen';
 import BudgetsScreen from '../screens/more/BudgetsScreen';
 import SavingGoalsScreen from '../screens/more/SavingGoalsScreen';
 import InvestmentsScreen from '../screens/more/InvestmentsScreen';
+import AssetsScreen from '../screens/more/AssetsScreen';
+import LiabilitiesScreen from '../screens/more/LiabilitiesScreen';
+import ExportReportScreen from '../screens/more/ExportReportScreen';
 import NetWorthScreen from '../screens/more/NetWorthScreen';
-import ScanScreen from '../screens/receipts/ScanScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -28,7 +31,6 @@ function TabIcon({ routeName, focused }: { routeName: string; focused: boolean }
   const icons: Record<string, { active: IoniconName; inactive: IoniconName }> = {
     Dashboard: { active: 'home', inactive: 'home-outline' },
     Transactions: { active: 'receipt', inactive: 'receipt-outline' },
-    Scan: { active: 'scan', inactive: 'scan-outline' },
     More: { active: 'ellipsis-horizontal-circle', inactive: 'ellipsis-horizontal' },
   };
   const set = icons[routeName] || { active: 'ellipsis-horizontal', inactive: 'ellipsis-horizontal' };
@@ -51,11 +53,12 @@ function TabBarButton({
 }: {
   routeName: string;
   children?: React.ReactNode;
-  onPress?: () => void;
+  onPress?: (e?: any) => void;
   onLongPress?: () => void;
   accessibilityLabel?: string;
   accessibilityState?: { selected?: boolean };
 }) {
+  const { t } = useI18n();
   if (routeName === 'Add') {
     return (
       <Pressable
@@ -65,7 +68,7 @@ function TabBarButton({
           rest.onPress?.(e);
         }}
         accessibilityRole="button"
-        accessibilityLabel="Add transaction"
+        accessibilityLabel={t('tab.add_a11y')}
         style={({ pressed }) => [
           styles.tabButton,
           styles.addTabButton,
@@ -98,6 +101,7 @@ type MainTabsProps = {
 };
 
 function MainTabs({ onSignOut }: MainTabsProps) {
+  const { t } = useI18n();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -110,15 +114,25 @@ function MainTabs({ onSignOut }: MainTabsProps) {
         headerShown: false,
       })}
     >
-      <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      <Tab.Screen name="Transactions" component={TransactionsScreen} />
+      <Tab.Screen
+        name="Dashboard"
+        component={DashboardScreen}
+        options={{ tabBarLabel: t('tab.dashboard') }}
+      />
+      <Tab.Screen
+        name="Transactions"
+        component={TransactionsScreen}
+        options={{ tabBarLabel: t('tab.transactions') }}
+      />
       <Tab.Screen
         name="Add"
         component={AddTransactionScreen}
         options={{ tabBarLabel: '', tabBarIcon: () => null }}
       />
-      <Tab.Screen name="Scan" component={ScanScreen} />
-      <Tab.Screen name="More">
+      <Tab.Screen
+        name="More"
+        options={{ tabBarLabel: t('tab.more') }}
+      >
         {({ navigation }) => <MoreScreen navigation={navigation} onSignOut={onSignOut} />}
       </Tab.Screen>
     </Tab.Navigator>
@@ -130,6 +144,7 @@ type AppNavigatorProps = {
 };
 
 export default function AppNavigator({ onSignOut }: AppNavigatorProps) {
+  const { t } = useI18n();
   return (
     <NavigationContainer>
       <Stack.Navigator
@@ -146,43 +161,60 @@ export default function AppNavigator({ onSignOut }: AppNavigatorProps) {
           component={AddTransactionScreen}
           options={({ route }: any) => ({
             headerShown: true,
-            title: route?.params?.transactionId ? 'Edit Transaction' : 'Add Transaction',
+            title: route?.params?.transactionId
+              ? t('nav.edit_transaction')
+              : t('nav.add_transaction'),
           })}
         />
         <Stack.Screen
           name="Accounts"
           component={ManageAccountsScreen}
-          options={{ headerShown: true, title: 'Accounts' }}
+          options={{ headerShown: true, title: t('nav.accounts') }}
         />
         <Stack.Screen
           name="Categories"
           component={ManageCategoriesScreen}
-          options={{ headerShown: true, title: 'Categories' }}
+          options={{ headerShown: true, title: t('nav.categories') }}
         />
         <Stack.Screen
           name="Household"
           component={HouseholdMembersScreen}
-          options={{ headerShown: true, title: 'Household' }}
+          options={{ headerShown: true, title: t('nav.household') }}
         />
         <Stack.Screen
           name="Budgets"
           component={BudgetsScreen}
-          options={{ headerShown: true, title: 'Budgets' }}
+          options={{ headerShown: true, title: t('nav.budgets') }}
         />
         <Stack.Screen
           name="SavingGoals"
           component={SavingGoalsScreen}
-          options={{ headerShown: true, title: 'Saving Goals' }}
+          options={{ headerShown: true, title: t('nav.saving_goals') }}
         />
         <Stack.Screen
           name="Investments"
           component={InvestmentsScreen}
-          options={{ headerShown: true, title: 'Investments' }}
+          options={{ headerShown: true, title: t('nav.investments') }}
         />
         <Stack.Screen
           name="NetWorth"
           component={NetWorthScreen}
-          options={{ headerShown: true, title: 'Net Worth' }}
+          options={{ headerShown: true, title: t('nav.net_worth') }}
+        />
+        <Stack.Screen
+          name="Assets"
+          component={AssetsScreen}
+          options={{ headerShown: true, title: t('nav.assets') }}
+        />
+        <Stack.Screen
+          name="Liabilities"
+          component={LiabilitiesScreen}
+          options={{ headerShown: true, title: t('nav.liabilities') }}
+        />
+        <Stack.Screen
+          name="ExportReport"
+          component={ExportReportScreen}
+          options={{ headerShown: true, title: t('nav.export_report') }}
         />
       </Stack.Navigator>
     </NavigationContainer>

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import Svg, { G, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { Colors, FontSize, Spacing } from '../core/theme';
 import { CategoryBreakdownItem } from '../services/transactionService';
+import { useI18n } from '../core/i18n';
 
 const HEIGHT = 300;
 const PAD = 14;
@@ -42,6 +43,7 @@ export default function IncomeAllocationChart({
   expenseBreakdown,
   period,
 }: Props) {
+  const { t } = useI18n();
   const [width, setWidth] = useState(0);
 
   const topCats = expenseBreakdown.filter((b) => b.total > 0).slice(0, MAX_EXPENSE_NODES);
@@ -52,10 +54,10 @@ export default function IncomeAllocationChart({
   const sinks: Sink[] = [
     ...topCats.map((b) => ({ key: b.id, label: b.name, color: b.color || Colors.expense, amount: b.total, exp: true })),
     ...(extraTotal > 0
-      ? [{ key: '__other__', label: 'Other', color: Colors.expense, amount: extraTotal, exp: true } as Sink]
+      ? [{ key: '__other__', label: t('chart.other'), color: Colors.expense, amount: extraTotal, exp: true } as Sink]
       : []),
-    { key: '__savings__', label: 'Savings', color: Colors.saving, amount: saved, exp: false },
-    { key: '__investments__', label: 'Investments', color: Colors.investment, amount: invested, exp: false },
+    { key: '__savings__', label: t('chart.savings'), color: Colors.saving, amount: saved, exp: false },
+    { key: '__investments__', label: t('chart.investments'), color: Colors.investment, amount: invested, exp: false },
   ];
 
   const hasData = income !== 0 || expenses !== 0 || saved !== 0 || invested !== 0;
@@ -124,7 +126,7 @@ export default function IncomeAllocationChart({
     <View style={styles.container}>
       <View style={styles.hint}>
         <Text style={styles.hintText}>
-          How income is allocated · Expenses expanded by category · Savings · Investments
+          {t('chart.hint')}
         </Text>
       </View>
 
@@ -132,7 +134,7 @@ export default function IncomeAllocationChart({
         {!hasData ? (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyText}>
-              No income allocation in this {periodLabel} period
+              {t('chart.no_allocation', { period: t(`chart.${periodLabel}`) })}
             </Text>
           </View>
         ) : width > 0 ? (
@@ -149,7 +151,7 @@ export default function IncomeAllocationChart({
                 fill={Colors.text}
                 textAnchor="end"
               >
-                Income
+                {t('chart.income')}
               </SvgText>
               <SvgText
                 x={srcX - 6}
@@ -170,7 +172,7 @@ export default function IncomeAllocationChart({
                   fontWeight="600"
                   fill={Colors.expense}
                 >
-                  Expenses
+                  {t('chart.expenses')}
                 </SvgText>
               )}
 

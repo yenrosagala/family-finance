@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -11,7 +12,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
-import { formatMoney } from '../../core/format';
+import { formatMoney, parseAmount } from '../../core/format';
 import {
   getSavingGoals,
   createSavingGoal,
@@ -22,8 +23,11 @@ import {
 } from '../../services/savingGoalService';
 import { getAccounts, createTransaction } from '../../services/transactionService';
 import { Account } from '../../models';
+import { useI18n } from '../../core/i18n';
 
 export default function SavingGoalsScreen() {
+  const isFocused = useIsFocused();
+  const { t } = useI18n();
   const [goals, setGoals] = useState<SavingGoalProgress[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,13 +53,13 @@ export default function SavingGoalsScreen() {
       setGoals(goalData);
       setAccounts(accountData);
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     }
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (isFocused) load();
+  }, [load, isFocused]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -82,9 +86,9 @@ export default function SavingGoalsScreen() {
   };
 
   const handleSaveGoal = async () => {
-    const target = Number(targetText);
-    if (!name.trim() || !target || target <= 0) {
-      Alert.alert('Error', 'Enter a name and a positive target amount');
+    const target = parseAmount(targetText);
+    if (!name.trim() || !Number.isFinite(target) || target <= 0) {
+      Alert.alert(t('common.error'), t('goals.err_target'));
       return;
     }
     setSaving(true);
@@ -100,7 +104,7 @@ export default function SavingGoalsScreen() {
       setEditVisible(false);
       await load();
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     } finally {
       setSaving(false);
     }
@@ -114,9 +118,9 @@ export default function SavingGoalsScreen() {
   };
 
   const handleContribute = async () => {
-    const amount = Number(contribAmount);
-    if (!contribGoal || !amount || amount <= 0 || !contribFromAccount) {
-      Alert.alert('Error', 'Enter a valid amount and choose an account');
+    const amount = parseAmount(contribAmount);
+    if (!contribGoal || !Number.isFinite(amount) || amount <= 0 || !contribFromAccount) {
+      Alert.alert(t('common.error'), t('goals.err_contribute'));
       return;
     }
     setSaving(true);
@@ -140,24 +144,24 @@ export default function SavingGoalsScreen() {
       setContribVisible(false);
       await load();
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = (g: SavingGoalProgress) => {
-    Alert.alert('Delete goal', `Remove "${g.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('goals.delete_title'), t('goals.delete_msg', { name: g.name }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deleteSavingGoal(g.id);
             await load();
           } catch (e) {
-            Alert.alert('Error', (e as Error).message);
+            Alert.alert(t('common.error'), (e as Error).message);
           }
         },
       },
@@ -176,7 +180,7 @@ export default function SavingGoalsScreen() {
             {formatMoney(item.current_amount)} / {formatMoney(item.target_amount)}
           </Text>
           {item.current_amount >= item.target_amount ? (
-            <Text style={[styles.completeBadge]}>Goal reached 🎉</Text>
+            <Text style={[styles.completeBadge]}>{t('goals.reached')}</Text>
           ) : (
             <Text style={styles.rowPct}>{Math.round(item.progress * 100)}%</Text>
           )}
@@ -194,17 +198,17 @@ export default function SavingGoalsScreen() {
         />
       </View>
       <Text style={styles.remaining}>
-        {item.progress >= 1 ? `Done! ${formatMoney(item.remaining)} over target` : `${formatMoney(item.remaining)} to go`}
+        {item.progress >= 1 ? t('goals.done_over', { amt: formatMoney(item.remaining) }) : t('goals.to_go', { amt: formatMoney(item.remaining) })}
       </Text>
       <View style={styles.rowButtons}>
         <TouchableOpacity style={[styles.smallButton, styles.primaryBtn]} onPress={() => openContribute(item)}>
-          <Text style={styles.primaryBtnText}>Contribute</Text>
+          <Text style={styles.primaryBtnText}>{t('goals.contribute')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.smallButton, styles.editBtn]} onPress={() => openEdit(item)}>
-          <Text style={styles.editBtnText}>Edit</Text>
+          <Text style={styles.editBtnText}>{t('common.edit')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.smallButton, styles.deleteBtn]} onPress={() => handleDelete(item)}>
-          <Text style={styles.deleteBtnText}>Delete</Text>
+          <Text style={styles.deleteBtnText}>{t('common.delete')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -212,10 +216,10 @@ export default function SavingGoalsScreen() {
 
   const accountPicker = (value: string | null, onChange: (id: string | null) => void) => (
     <View>
-      <Text style={styles.label}>Linked account</Text>
+      <Text style={styles.label}>{t('goals.linked_account')}</Text>
       <View style={styles.chipWrap}>
         <TouchableOpacity style={[styles.chip, value === null && styles.chipActive]} onPress={() => onChange(null)}>
-          <Text style={[styles.chipText, value === null && styles.chipTextActive]}>None</Text>
+          <Text style={[styles.chipText, value === null && styles.chipTextActive]}>{t('common.none')}</Text>
         </TouchableOpacity>
         {accounts.map((a) => (
           <TouchableOpacity
@@ -237,11 +241,11 @@ export default function SavingGoalsScreen() {
         keyExtractor={(g) => g.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
-          goals.length === 0 ? <Text style={styles.empty}>No saving goals yet. Add one to start tracking.</Text> : null
+          goals.length === 0 ? <Text style={styles.empty}>{t('goals.empty')}</Text> : null
         }
         ListFooterComponent={
           <TouchableOpacity style={styles.addButton} onPress={openAdd}>
-            <Text style={styles.addButtonText}>+ New Saving Goal</Text>
+            <Text style={styles.addButtonText}>+ {t('goals.new')}</Text>
           </TouchableOpacity>
         }
         renderItem={renderItem}
@@ -251,17 +255,17 @@ export default function SavingGoalsScreen() {
       <Modal visible={editVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>{editing ? 'Edit Saving Goal' : 'New Saving Goal'}</Text>
-            <TextInput style={styles.input} placeholder="Goal name (e.g. Emergency Fund)" placeholderTextColor={Colors.textMuted} value={name} onChangeText={setName} />
-            <TextInput style={styles.input} placeholder="Target amount" placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={targetText} onChangeText={setTargetText} />
-            <TextInput style={styles.input} placeholder="Target date (YYYY-MM-DD, optional)" placeholderTextColor={Colors.textMuted} value={dateText} onChangeText={setDateText} />
+            <Text style={styles.modalTitle}>{editing ? t('goals.edit') : t('goals.new')}</Text>
+            <TextInput style={styles.input} placeholder={t('goals.name_placeholder')} placeholderTextColor={Colors.textMuted} value={name} onChangeText={setName} />
+            <TextInput style={styles.input} placeholder={t('goals.target_placeholder')} placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={targetText} onChangeText={setTargetText} />
+            <TextInput style={styles.input} placeholder={t('goals.date_placeholder')} placeholderTextColor={Colors.textMuted} value={dateText} onChangeText={setDateText} />
             {accountPicker(linkedAccountId, setLinkedAccountId)}
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setEditVisible(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={handleSaveGoal} disabled={saving}>
-                <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save'}</Text>
+                <Text style={styles.saveText}>{saving ? t('common.saving') : t('common.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -271,9 +275,9 @@ export default function SavingGoalsScreen() {
       <Modal visible={contribVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Contribute to {contribGoal?.name}</Text>
-            <TextInput style={styles.input} placeholder="Amount" placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={contribAmount} onChangeText={setContribAmount} autoFocus />
-            <Text style={styles.label}>From account</Text>
+            <Text style={styles.modalTitle}>{t('goals.contribute_to', { name: contribGoal?.name ?? '' })}</Text>
+            <TextInput style={styles.input} placeholder={t('common.amount')} placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={contribAmount} onChangeText={setContribAmount} autoFocus />
+            <Text style={styles.label}>{t('goals.from_account')}</Text>
             <View style={styles.chipWrap}>
               {accounts.map((a) => (
                 <TouchableOpacity key={a.id} style={[styles.chip, contribFromAccount === a.id && styles.chipActive]} onPress={() => setContribFromAccount(a.id)}>
@@ -283,10 +287,10 @@ export default function SavingGoalsScreen() {
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setContribVisible(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={handleContribute} disabled={saving}>
-                <Text style={styles.saveText}>{saving ? 'Saving...' : 'Contribute'}</Text>
+                <Text style={styles.saveText}>{saving ? t('common.saving') : t('goals.contribute')}</Text>
               </TouchableOpacity>
             </View>
           </View>

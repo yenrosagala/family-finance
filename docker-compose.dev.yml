@@ -1,0 +1,81 @@
+# FamFin Docker Compose — Local development
+# Full stack: PostgreSQL + API + OCR microservice
+# Run: docker compose -f docker-compose.dev.yml up --pull always
+
+version: '3.8'
+
+services:
+  # PostgreSQL database (master DB: app_users + households_registry)
+  db:
+    image: postgres:16-alpine
+    container_name: famfin-db
+    environment:
+      POSTGRES_USER: famfin
+      POSTGRES_PASSWORD: famfin
+      POSTGRES_DB: famfin
+    ports:
+      - "5433:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./api/src/db/master-schema.sql:/docker-entrypoint-initdb.d/01-master-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U famfin -d famfin"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - famfin
+
+  # Express API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: famfin-api
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    env_file:
+      - api/.env
+    environment:
+      - NODE_ENV=development
+      - OCR_SERVICE_URL=http://ocr:8008
+    volumes:
+      # Hot reload for development
+      - ./api/src:/app/src:ro
+    develop:
+      watch:
+        - path: ./api/src
+          action: rebuild
+    networks:
+      - famfin
+    restart: unless-stopped
+
+  # OCR microservice
+  ocr:
+    build:
+      context: .
+      dockerfile: Dockerfile.ocr
+    container_name: famfin-ocr
+    ports:
+      - "8008:8008"
+    environment:
+      - OCR_PORT=8008
+      - OCR_HOST=0.0.0.0
+    volumes:
+      # Cache model weights across restarts (multi-GB download)
+      - ocr-models:/root/.cache/huggingface
+    networks:
+      - famfin
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  ocr-models:
+
+networks:
+  famfin:
+    driver: bridge

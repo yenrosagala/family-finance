@@ -1,0 +1,67 @@
+# FamFin Docker Compose — Production (single-host)
+# API + database only. Deploy OCR separately on a GPU-backed instance.
+# Run: docker compose -f docker-compose.prod.yml up -d --pull always
+
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  db:
+    image: postgres:16-alpine
+    container_name: famfin-db-prod
+    restart: always
+    environment:
+      POSTGRES_USER: famfin
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: famfin
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U famfin -d famfin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - famfin
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Express API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: famfin-api-prod
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    env_file:
+      - api/.env.prod
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+    networks:
+      - famfin
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  db-data:
+
+networks:
+  famfin:
+    driver: bridge

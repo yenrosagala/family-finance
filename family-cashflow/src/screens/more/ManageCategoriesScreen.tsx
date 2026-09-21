@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -12,10 +13,13 @@ import {
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
 import { getCategories, createCategory } from '../../services/transactionService';
 import { Category } from '../../models';
+import { useI18n } from '../../core/i18n';
 
 const PALETTE = ['#10B981', '#EF4444', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
 
 export default function ManageCategoriesScreen() {
+  const isFocused = useIsFocused();
+  const { t } = useI18n();
   const [categories, setCategories] = useState<Category[]>([]);
   const [name, setName] = useState('');
   const [type, setType] = useState<'income' | 'expense'>('expense');
@@ -27,13 +31,13 @@ export default function ManageCategoriesScreen() {
     try {
       setCategories(await getCategories());
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     }
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (isFocused) load();
+  }, [load, isFocused]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -43,7 +47,7 @@ export default function ManageCategoriesScreen() {
 
   const handleAdd = async () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Enter a category name');
+      Alert.alert(t('common.error'), t('cat.err_name'));
       return;
     }
     setLoading(true);
@@ -56,7 +60,7 @@ export default function ManageCategoriesScreen() {
       setName('');
       await load();
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -67,7 +71,7 @@ export default function ManageCategoriesScreen() {
       <View style={[styles.swatch, { backgroundColor: item.color || Colors.textMuted }]} />
       <Text style={styles.rowName}>{item.name}</Text>
       <Text style={[styles.rowType, { color: item.transaction_type === 'income' ? Colors.income : Colors.expense }]}>
-        {item.transaction_type === 'income' ? 'Income' : 'Expense'}
+        {item.transaction_type === 'income' ? t('cat.income') : t('cat.expense')}
       </Text>
     </View>
   );
@@ -83,7 +87,7 @@ export default function ManageCategoriesScreen() {
             <View style={styles.addCard}>
               <TextInput
                 style={styles.input}
-                placeholder="Category name (e.g. Coffee)"
+                placeholder={t('cat.name_placeholder')}
                 placeholderTextColor={Colors.textMuted}
                 value={name}
                 onChangeText={setName}
@@ -93,13 +97,13 @@ export default function ManageCategoriesScreen() {
                   style={[styles.typeChip, type === 'expense' && styles.typeChipActive]}
                   onPress={() => setType('expense')}
                 >
-                  <Text style={[styles.chipText, type === 'expense' && styles.chipTextActive]}>Expense</Text>
+                  <Text style={[styles.chipText, type === 'expense' && styles.chipTextActive]}>{t('cat.expense')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.typeChip, type === 'income' && styles.typeChipActive]}
                   onPress={() => setType('income')}
                 >
-                  <Text style={[styles.chipText, type === 'income' && styles.chipTextActive]}>Income</Text>
+                  <Text style={[styles.chipText, type === 'income' && styles.chipTextActive]}>{t('cat.income')}</Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.swatchRow}>
@@ -112,11 +116,11 @@ export default function ManageCategoriesScreen() {
                 ))}
               </View>
               <TouchableOpacity style={styles.addButton} onPress={handleAdd} disabled={loading}>
-                <Text style={styles.addButtonText}>{loading ? 'Adding...' : 'Add Category'}</Text>
+                <Text style={styles.addButtonText}>{loading ? t('common.saving') : t('cat.add')}</Text>
               </TouchableOpacity>
             </View>
             {categories.length === 0 && (
-              <Text style={styles.empty}>No categories yet.</Text>
+              <Text style={styles.empty}>{t('cat.empty')}</Text>
             )}
           </>
         }

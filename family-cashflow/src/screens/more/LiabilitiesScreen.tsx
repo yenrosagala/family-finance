@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -11,18 +12,20 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
-import { formatMoney } from '../../core/format';
+import { formatMoney, parseAmount } from '../../core/format';
 import {
   getLiabilities,
   createLiability,
   updateLiability,
   deleteLiability,
   LIABILITY_TYPES,
-  LIABILITY_TYPE_LABELS,
 } from '../../services/liabilityService';
 import { Liability } from '../../models';
+import { useI18n } from '../../core/i18n';
 
 export default function LiabilitiesScreen() {
+  const isFocused = useIsFocused();
+  const { t } = useI18n();
   const [liabilities, setLiabilities] = useState<Liability[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -38,13 +41,13 @@ export default function LiabilitiesScreen() {
     try {
       setLiabilities(await getLiabilities());
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     }
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (isFocused) load();
+  }, [load, isFocused]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -72,36 +75,38 @@ export default function LiabilitiesScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Enter a name');
+      Alert.alert(t('common.error'), t('liab.err_name'));
       return;
     }
     setSaving(true);
     try {
-      const balance = balanceText.trim() ? Number(balanceText) : undefined;
-      const rate = rateText.trim() ? Number(rateText) : null;
+      const balanceRaw = parseAmount(balanceText);
+      const rateRaw = parseAmount(rateText);
+      const balance = balanceText.trim() && Number.isFinite(balanceRaw) ? balanceRaw : undefined;
+      const rate = rateText.trim() && Number.isFinite(rateRaw) ? rateRaw : null;
       if (editing) await updateLiability(editing.id, { name: name.trim(), type, current_balance: balance, interest_rate: rate });
       else await createLiability({ name: name.trim(), type, current_balance: balance, interest_rate: rate });
       setModalVisible(false);
       await load();
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = (l: Liability) => {
-    Alert.alert('Delete liability', `Remove "${l.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('liab.delete_title'), t('liab.delete_msg', { name: l.name }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deleteLiability(l.id);
             await load();
           } catch (e) {
-            Alert.alert('Error', (e as Error).message);
+            Alert.alert(t('common.error'), (e as Error).message);
           }
         },
       },
@@ -115,7 +120,7 @@ export default function LiabilitiesScreen() {
       <View style={styles.rowLeft}>
         <Text style={styles.rowName}>{item.name}</Text>
         <Text style={styles.rowType}>
-          {LIABILITY_TYPE_LABELS[item.type] || item.type}
+          {t(`ltype.${item.type}`).startsWith('ltype.') ? item.type : t(`ltype.${item.type}`)}
           {item.interest_rate != null ? ` · ${item.interest_rate}%` : ''}
         </Text>
       </View>
@@ -123,10 +128,10 @@ export default function LiabilitiesScreen() {
         <Text style={styles.rowValue}>{formatMoney(item.current_balance)}</Text>
         <View style={styles.rowButtons}>
           <TouchableOpacity style={[styles.smallButton, styles.editBtn]} onPress={() => openEdit(item)}>
-            <Text style={styles.editBtnText}>Edit</Text>
+            <Text style={styles.editBtnText}>{t('common.edit')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.smallButton, styles.deleteBtn]} onPress={() => handleDelete(item)}>
-            <Text style={styles.deleteBtnText}>Del</Text>
+            <Text style={styles.deleteBtnText}>{t('common.del')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -136,7 +141,7 @@ export default function LiabilitiesScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.totalCard, { backgroundColor: Colors.danger }]}>
-        <Text style={styles.totalLabel}>Total liabilities</Text>
+        <Text style={styles.totalLabel}>{t('liab.total')}</Text>
         <Text style={styles.totalValue}>{formatMoney(total)}</Text>
       </View>
 
@@ -145,11 +150,11 @@ export default function LiabilitiesScreen() {
         keyExtractor={(l) => l.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
-          liabilities.length === 0 ? <Text style={styles.empty}>No liabilities yet (mortgage, loans, etc.).</Text> : null
+          liabilities.length === 0 ? <Text style={styles.empty}>{t('liab.empty')}</Text> : null
         }
         ListFooterComponent={
           <TouchableOpacity style={styles.addButton} onPress={openAdd}>
-            <Text style={styles.addButtonText}>+ New Liability</Text>
+            <Text style={styles.addButtonText}>+ {t('liab.new')}</Text>
           </TouchableOpacity>
         }
         renderItem={renderItem}
@@ -159,24 +164,24 @@ export default function LiabilitiesScreen() {
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>{editing ? 'Edit Liability' : 'New Liability'}</Text>
-            <TextInput style={styles.input} placeholder="Name (e.g. Home Mortgage)" placeholderTextColor={Colors.textMuted} value={name} onChangeText={setName} />
-            <Text style={styles.label}>Type</Text>
+            <Text style={styles.modalTitle}>{editing ? t('liab.edit') : t('liab.new')}</Text>
+            <TextInput style={styles.input} placeholder={t('liab.name_placeholder')} placeholderTextColor={Colors.textMuted} value={name} onChangeText={setName} />
+            <Text style={styles.label}>{t('liab.type')}</Text>
             <View style={styles.chipWrap}>
-              {LIABILITY_TYPES.map((t) => (
-                <TouchableOpacity key={t} style={[styles.chip, type === t && styles.chipActive]} onPress={() => setType(t)}>
-                  <Text style={[styles.chipText, type === t && styles.chipTextActive]}>{LIABILITY_TYPE_LABELS[t]}</Text>
+              {LIABILITY_TYPES.map((ty) => (
+                <TouchableOpacity key={ty} style={[styles.chip, type === ty && styles.chipActive]} onPress={() => setType(ty)}>
+                  <Text style={[styles.chipText, type === ty && styles.chipTextActive]}>{t(`ltype.${ty}`)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <TextInput style={styles.input} placeholder="Current balance" placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={balanceText} onChangeText={setBalanceText} />
-            <TextInput style={styles.input} placeholder="Interest rate % (optional)" placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={rateText} onChangeText={setRateText} />
+            <TextInput style={styles.input} placeholder={t('liab.current_balance')} placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={balanceText} onChangeText={setBalanceText} />
+            <TextInput style={styles.input} placeholder={t('liab.rate_placeholder')} placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={rateText} onChangeText={setRateText} />
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-                <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save'}</Text>
+                <Text style={styles.saveText}>{saving ? t('common.saving') : t('common.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>

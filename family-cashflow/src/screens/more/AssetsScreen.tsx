@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -11,18 +12,20 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
-import { formatMoney } from '../../core/format';
+import { formatMoney, parseAmount } from '../../core/format';
 import {
   getAssets,
   createAsset,
   updateAsset,
   deleteAsset,
   ASSET_TYPES,
-  ASSET_TYPE_LABELS,
 } from '../../services/assetService';
 import { Asset } from '../../models';
+import { useI18n } from '../../core/i18n';
 
 export default function AssetsScreen() {
+  const isFocused = useIsFocused();
+  const { t } = useI18n();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -37,13 +40,13 @@ export default function AssetsScreen() {
     try {
       setAssets(await getAssets());
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     }
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (isFocused) load();
+  }, [load, isFocused]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -69,35 +72,36 @@ export default function AssetsScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Enter a name');
+      Alert.alert(t('common.error'), t('assets.err_name'));
       return;
     }
     setSaving(true);
     try {
-      const value = valueText.trim() ? Number(valueText) : undefined;
+      const valueRaw = parseAmount(valueText);
+      const value = valueText.trim() && Number.isFinite(valueRaw) ? valueRaw : undefined;
       if (editing) await updateAsset(editing.id, { name: name.trim(), type, current_value: value });
       else await createAsset({ name: name.trim(), type, current_value: value });
       setModalVisible(false);
       await load();
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = (a: Asset) => {
-    Alert.alert('Delete asset', `Remove "${a.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('assets.delete_title'), t('assets.delete_msg', { name: a.name }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deleteAsset(a.id);
             await load();
           } catch (e) {
-            Alert.alert('Error', (e as Error).message);
+            Alert.alert(t('common.error'), (e as Error).message);
           }
         },
       },
@@ -110,16 +114,16 @@ export default function AssetsScreen() {
     <View style={styles.row}>
       <View style={styles.rowLeft}>
         <Text style={styles.rowName}>{item.name}</Text>
-        <Text style={styles.rowType}>{ASSET_TYPE_LABELS[item.type] || item.type}</Text>
+        <Text style={styles.rowType}>{t(`astype.${item.type}`).startsWith('astype.') ? item.type : t(`astype.${item.type}`)}</Text>
       </View>
       <View style={styles.rowRight}>
         <Text style={styles.rowValue}>{formatMoney(item.current_value)}</Text>
         <View style={styles.rowButtons}>
           <TouchableOpacity style={[styles.smallButton, styles.editBtn]} onPress={() => openEdit(item)}>
-            <Text style={styles.editBtnText}>Edit</Text>
+            <Text style={styles.editBtnText}>{t('common.edit')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.smallButton, styles.deleteBtn]} onPress={() => handleDelete(item)}>
-            <Text style={styles.deleteBtnText}>Del</Text>
+            <Text style={styles.deleteBtnText}>{t('common.del')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -129,7 +133,7 @@ export default function AssetsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Total assets</Text>
+        <Text style={styles.totalLabel}>{t('assets.total')}</Text>
         <Text style={styles.totalValue}>{formatMoney(total)}</Text>
       </View>
 
@@ -138,11 +142,11 @@ export default function AssetsScreen() {
         keyExtractor={(a) => a.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
-          assets.length === 0 ? <Text style={styles.empty}>No assets yet (property, vehicles, etc.).</Text> : null
+          assets.length === 0 ? <Text style={styles.empty}>{t('assets.empty')}</Text> : null
         }
         ListFooterComponent={
           <TouchableOpacity style={styles.addButton} onPress={openAdd}>
-            <Text style={styles.addButtonText}>+ New Asset</Text>
+            <Text style={styles.addButtonText}>+ {t('assets.new')}</Text>
           </TouchableOpacity>
         }
         renderItem={renderItem}
@@ -152,23 +156,23 @@ export default function AssetsScreen() {
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>{editing ? 'Edit Asset' : 'New Asset'}</Text>
-            <TextInput style={styles.input} placeholder="Name (e.g. Toyota Avanza)" placeholderTextColor={Colors.textMuted} value={name} onChangeText={setName} />
-            <Text style={styles.label}>Type</Text>
+            <Text style={styles.modalTitle}>{editing ? t('assets.edit') : t('assets.new')}</Text>
+            <TextInput style={styles.input} placeholder={t('assets.name_placeholder')} placeholderTextColor={Colors.textMuted} value={name} onChangeText={setName} />
+            <Text style={styles.label}>{t('assets.type')}</Text>
             <View style={styles.chipWrap}>
-              {ASSET_TYPES.map((t) => (
-                <TouchableOpacity key={t} style={[styles.chip, type === t && styles.chipActive]} onPress={() => setType(t)}>
-                  <Text style={[styles.chipText, type === t && styles.chipTextActive]}>{ASSET_TYPE_LABELS[t]}</Text>
+              {ASSET_TYPES.map((ty) => (
+                <TouchableOpacity key={ty} style={[styles.chip, type === ty && styles.chipActive]} onPress={() => setType(ty)}>
+                  <Text style={[styles.chipText, type === ty && styles.chipTextActive]}>{t(`astype.${ty}`)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <TextInput style={styles.input} placeholder="Current value" placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={valueText} onChangeText={setValueText} />
+            <TextInput style={styles.input} placeholder={t('assets.current_value')} placeholderTextColor={Colors.textMuted} keyboardType="numeric" value={valueText} onChangeText={setValueText} />
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-                <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save'}</Text>
+                <Text style={styles.saveText}>{saving ? t('common.saving') : t('common.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>

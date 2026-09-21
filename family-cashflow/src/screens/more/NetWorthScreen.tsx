@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -9,6 +10,7 @@ import {
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
 import { formatMoney } from '../../core/format';
 import { getNetWorth, NetWorthCurrent, NetWorthHistoryPoint } from '../../services/netWorthService';
+import { useI18n } from '../../core/i18n';
 
 function Row({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
@@ -20,6 +22,8 @@ function Row({ label, value, color }: { label: string; value: number; color?: st
 }
 
 export default function NetWorthScreen() {
+  const isFocused = useIsFocused();
+  const { t, locale } = useI18n();
   const [current, setCurrent] = useState<NetWorthCurrent | null>(null);
   const [history, setHistory] = useState<NetWorthHistoryPoint[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -36,7 +40,7 @@ export default function NetWorthScreen() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (isFocused) load(); }, [load, isFocused]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -55,7 +59,7 @@ export default function NetWorthScreen() {
   if (!current) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.loadingText}>Loading…</Text>
+        <Text style={styles.loadingText}>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -69,42 +73,42 @@ export default function NetWorthScreen() {
     >
       {/* Net worth hero */}
       <View style={[styles.heroCard, { backgroundColor: current.net_worth >= 0 ? Colors.primary : Colors.danger }]}>
-        <Text style={styles.heroLabel}>Net Worth</Text>
+        <Text style={styles.heroLabel}>{t('nw.net_worth')}</Text>
         <Text style={styles.heroAmount}>{formatMoney(current.net_worth)}</Text>
-        <Text style={styles.heroSub}>Assets − Liabilities</Text>
+        <Text style={styles.heroSub}>{t('nw.assets_liab')}</Text>
       </View>
 
       {/* Breakdown */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Assets</Text>
+        <Text style={styles.sectionTitle}>{t('nw.assets')}</Text>
         <View style={styles.card}>
-          <Row label="Cash & Accounts" value={current.accounts} color={Colors.income} />
+          <Row label={t('nw.cash_accounts')} value={current.accounts} color={Colors.income} />
           <View style={styles.divider} />
-          <Row label="Investments" value={current.investments} color={Colors.investment} />
+          <Row label={t('nw.investments')} value={current.investments} color={Colors.investment} />
           <View style={styles.divider} />
-          <Row label="Physical Assets" value={current.assets} color={Colors.saving} />
+          <Row label={t('nw.physical_assets')} value={current.assets} color={Colors.saving} />
           <View style={[styles.divider, { borderBottomWidth: 1 }]} />
-          <Row label="Total Assets" value={current.total_assets} color={Colors.income} />
+          <Row label={t('nw.total_assets')} value={current.total_assets} color={Colors.income} />
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Liabilities</Text>
+        <Text style={styles.sectionTitle}>{t('nw.liabilities')}</Text>
         <View style={styles.card}>
-          <Row label="Total Liabilities" value={current.liabilities} color={Colors.expense} />
+          <Row label={t('nw.total_liabilities')} value={current.liabilities} color={Colors.expense} />
         </View>
       </View>
 
       {/* History */}
       {history.length > 0 && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Monthly snapshots</Text>
+          <Text style={styles.sectionTitle}>{t('nw.monthly_snapshots')}</Text>
           <View style={styles.card}>
             {history.slice(-6).reverse().map((h) => (
               <View key={h.month}>
                 <View style={styles.historyRow}>
                   <Text style={styles.historyMonth}>
-                    {new Date(h.month + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    {new Date(h.month + '-01').toLocaleDateString(locale, { month: 'short', year: 'numeric' })}
                   </Text>
                   <Text style={[styles.historyNW, { color: h.net_worth >= 0 ? Colors.income : Colors.expense }]}>
                     {formatMoney(h.net_worth)}

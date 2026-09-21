@@ -59,6 +59,7 @@ export async function createCategory(category: {
 
 export async function getTransactions(options?: {
   limit?: number;
+  offset?: number;
   startDate?: string;
   endDate?: string;
   type?: string;
@@ -67,6 +68,7 @@ export async function getTransactions(options?: {
   if (await isLocalMode()) return localGetTransactions(options);
   const params = new URLSearchParams();
   if (options?.limit) params.set('limit', String(options.limit));
+  if (options?.offset) params.set('offset', String(options.offset));
   if (options?.startDate) params.set('startDate', options.startDate);
   if (options?.endDate) params.set('endDate', options.endDate);
   if (options?.type) params.set('type', options.type);
@@ -166,11 +168,14 @@ export async function getCategoryBreakdownRange(
 export async function getSeries(
   bucket: SeriesBucket,
   startDate: string,
-  endDate: string
+  endDate: string,
+  categoryId?: string
 ): Promise<SeriesPoint[]> {
-  if (await isLocalMode()) return localGetSeries(bucket, startDate, endDate);
+  if (await isLocalMode()) return localGetSeries(bucket, startDate, endDate, categoryId);
   const data = await api.get<{ series: SeriesPoint[] }>(
-    `/api/transactions/series?bucket=${bucket}&startDate=${startDate}&endDate=${endDate}`
+    `/api/transactions/series?bucket=${bucket}&startDate=${startDate}&endDate=${endDate}${
+      categoryId ? `&categoryId=${encodeURIComponent(categoryId)}` : ''
+    }`
   );
   return data.series;
 }

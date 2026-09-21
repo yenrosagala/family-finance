@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  ScrollView,
   TouchableOpacity,
   RefreshControl,
   LayoutAnimation,
@@ -14,7 +14,7 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
 import { formatMoney } from '../../core/format';
 import { getTransactions } from '../../services/transactionService';
 import { Transaction } from '../../models';
-import { TRANSACTION_TYPE_LABELS } from '../../constants/categories';
+import { useI18n } from '../../core/i18n';
 
 type DaySection = {
   date: string;
@@ -22,14 +22,14 @@ type DaySection = {
   total: number;
 };
 
-export function monthOptions(count = 6): { key: string; label: string }[] {
+export function monthOptions(count = 6, locale = 'en-US'): { key: string; label: string }[] {
   const now = new Date();
   const opts: { key: string; label: string }[] = [];
   for (let i = 0; i < count; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     opts.push({
       key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-      label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      label: d.toLocaleDateString(locale, { month: 'short', year: '2-digit' }),
     });
   }
   return opts;
@@ -41,20 +41,35 @@ function lastDayOfMonth(key: string): string {
 }
 
 export default function TransactionsScreen({ navigation }: { navigation: any }) {
+  const { t, locale } = useI18n();
+  const isFocused = useIsFocused();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [expandedDates, setExpandedDates] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [monthFilter, setMonthFilter] = useState<string | null>(null);
+  const [dropOpen, setDropOpen] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const months = monthOptions(6, locale);
+
+  const PAGE_SIZE = 50;
+
+  const getPage = async (offset: number) => {
+    return getTransactions({
+      limit: PAGE_SIZE,
+      offset,
+      ...(monthFilter
+        ? { startDate: `${monthFilter}-01`, endDate: lastDayOfMonth(monthFilter) }
+        : {}),
+    });
+  };
 
   const loadData = async () => {
     try {
-      const data = await getTransactions({
-        limit: 50,
-        ...(monthFilter
-          ? { startDate: `${monthFilter}-01`, endDate: lastDayOfMonth(monthFilter) }
-          : {}),
-      });
+      const data = await getPage(0);
       setTransactions(data);
+      setHasMore(data.length === PAGE_SIZE);
       const dates = Array.from(new Set(data.map((t) => t.txn_date)));
       setExpandedDates(dates.length ? [dates.sort().reverse()[0]] : []);
     } catch (error) {
@@ -62,9 +77,23 @@ export default function TransactionsScreen({ navigation }: { navigation: any }) 
     }
   };
 
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const data = await getPage(transactions.length);
+      setTransactions((prev) => [...prev, ...data]);
+      setHasMore(data.length === PAGE_SIZE);
+    } catch (error) {
+      console.error('Failed to load more transactions:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
-    loadData();
-  }, [monthFilter]);
+    if (isFocused) loadData();
+  }, [monthFilter, isFocused]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -118,12 +147,12 @@ export default function TransactionsScreen({ navigation }: { navigation: any }) 
     const norm = String(date || '').slice(0, 10);
     const [y, m, d] = norm.split('-').map(Number);
     if (norm.length !== 10 || ![y, m, d].every(Number.isFinite)) {
-      return { day: '--', month: '', weekday: 'Unknown date', full: 'Unknown date' };
+      return { day: '--', month: '', weekday: t('txn.unknown_date'), full: t('txn.unknown_date') };
     }
     const dt = new Date(y, m - 1, d);
-    const weekday = dt.toLocaleDateString('en-US', { weekday: 'long' });
-    const month = dt.toLocaleDateString('en-US', { month: 'short' });
-    const full = dt.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+    const weekday = dt.toLocaleDateString(locale, { weekday: 'long' });
+    const month = dt.toLocaleDateString(locale, { month: 'short' });
+    const full = dt.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
     return { day: d, month: month.toUpperCase(), weekday, full };
   };
 
@@ -146,7 +175,7 @@ export default function TransactionsScreen({ navigation }: { navigation: any }) 
           <View style={styles.dayHeaderInfo}>
             <Text style={styles.dayWeekday}>{info.weekday}</Text>
             <Text style={styles.dayMeta}>
-              {item.items.length} transaction{item.items.length === 1 ? '' : 's'}
+              {t('txn.txn_count', { n: item.items.length })}
             </Text>
           </View>
           <View style={styles.dayHeaderRight}>
@@ -163,7 +192,7 @@ export default function TransactionsScreen({ navigation }: { navigation: any }) 
           <View style={styles.dayBody}>
             {item.items.map((txn, index) => {
               const typeColor = getTypeColor(txn.type);
-              const label = TRANSACTION_TYPE_LABELS[txn.type];
+              const label = t(`type.${txn.type}`);
               return (
                 <TouchableOpacity
                   key={txn.id}
@@ -204,49 +233,71 @@ export default function TransactionsScreen({ navigation }: { navigation: any }) 
   const visibleTotal = sections.reduce((sum, s) => sum + s.total, 0);
 
   const filteredLabel = monthFilter
-    ? monthOptions().find((o) => o.key === monthFilter)?.label
+    ? months.find((o) => o.key === monthFilter)?.label
     : null;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Transactions</Text>
+        <Text style={styles.title}>{t('txn.title')}</Text>
         <Text style={styles.headerSub}>
-          {filteredLabel ? `${transactions.length} in ${filteredLabel}` : `${transactions.length} shown`} · {formatMoney(visibleTotal)} balance
+          {filteredLabel
+            ? t('txn.in_month', { n: transactions.length, month: filteredLabel })
+            : t('txn.shown', { n: transactions.length })}{' '}
+          · {formatMoney(visibleTotal)} {t('txn.total')}
         </Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterBar}
-          contentContainerStyle={styles.filterContent}
+
+        <TouchableOpacity
+          style={[styles.dropField, monthFilter !== null && styles.dropFieldActive]}
+          onPress={() => setDropOpen((v) => !v)}
+          activeOpacity={0.7}
         >
-          <TouchableOpacity
-            style={[styles.filterChip, monthFilter === null && styles.filterChipActive]}
-            onPress={() => setMonthFilter(null)}
-            activeOpacity={0.7}
+          <Text
+            style={[
+              styles.filterChipText,
+              monthFilter !== null && styles.filterChipTextActive,
+            ]}
           >
-            <Text
-              style={[styles.filterChipText, monthFilter === null && styles.filterChipTextActive]}
+            {filteredLabel ?? t('txn.all')}
+          </Text>
+          <Text style={[styles.chevron, { color: monthFilter !== null ? '#FFFFFF' : Colors.textMuted }]}>
+            {'\u25BE'}
+          </Text>
+        </TouchableOpacity>
+        {dropOpen && (
+          <View style={styles.dropMenu}>
+            <TouchableOpacity
+              style={[styles.dropItem, monthFilter === null && styles.dropItemActive]}
+              onPress={() => {
+                setMonthFilter(null);
+                setDropOpen(false);
+              }}
+              activeOpacity={0.6}
             >
-              All
-            </Text>
-          </TouchableOpacity>
-          {monthOptions().map((opt) => {
-            const active = monthFilter === opt.key;
-            return (
-              <TouchableOpacity
-                key={opt.key}
-                style={[styles.filterChip, active && styles.filterChipActive]}
-                onPress={() => setMonthFilter(active ? null : opt.key)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+              <Text style={[styles.dropItemText, monthFilter === null && styles.dropItemTextActive]}>
+                {t('txn.all')}
+              </Text>
+            </TouchableOpacity>
+            {months.map((opt) => {
+              const active = monthFilter === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[styles.dropItem, active && styles.dropItemActive]}
+                  onPress={() => {
+                    setMonthFilter(active ? null : opt.key);
+                    setDropOpen(false);
+                  }}
+                  activeOpacity={0.6}
+                >
+                  <Text style={[styles.dropItemText, active && styles.dropItemTextActive]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </View>
 
       <FlatList
@@ -256,19 +307,28 @@ export default function TransactionsScreen({ navigation }: { navigation: any }) 
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={styles.list}
         ListFooterComponent={
-          sections.length > 0 ? (
-            <View style={styles.footerHint}>
-              <Text style={styles.footerHintText}>Tap a day header to collapse or expand it</Text>
-            </View>
-          ) : null
+          <>
+            {hasMore && (
+              <TouchableOpacity style={styles.loadMore} onPress={loadMore} disabled={loadingMore}>
+                <Text style={styles.loadMoreText}>
+                  {loadingMore ? t('common.loading') : t('txn.load_more')}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {sections.length > 0 ? (
+              <View style={styles.footerHint}>
+                <Text style={styles.footerHintText}>{t('txn.footer_hint')}</Text>
+              </View>
+            ) : null}
+          </>
         }
         ListEmptyComponent={
           <View style={styles.empty}>
             <View style={styles.emptyIconWrap}>
               <Text style={styles.emptyIcon}>{'\uD83D\uDCCB'}</Text>
             </View>
-            <Text style={styles.emptyText}>No transactions yet</Text>
-            <Text style={styles.emptySubtext}>Tap + below to add your first transaction</Text>
+            <Text style={styles.emptyText}>{t('txn.empty')}</Text>
+            <Text style={styles.emptySubtext}>{t('txn.empty_sub')}</Text>
           </View>
         }
       />
@@ -288,17 +348,31 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: FontSize.xxl, fontWeight: 'bold', color: Colors.text },
   headerSub: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: Spacing.xs },
-  filterBar: { marginTop: Spacing.md, flexGrow: 0 },
-  filterContent: { gap: Spacing.sm, paddingRight: Spacing.lg },
-  filterChip: {
+  dropField: {
+    marginTop: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: BorderRadius.xl,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  dropFieldActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  dropMenu: {
+    marginTop: 4,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
+  dropItem: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  dropItemActive: { backgroundColor: Colors.primary },
+  dropItemText: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  dropItemTextActive: { color: '#FFFFFF', fontWeight: '600' },
   filterChipText: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary },
   filterChipTextActive: { color: '#FFFFFF' },
   list: { padding: Spacing.md, paddingBottom: Spacing.xl },
@@ -363,6 +437,16 @@ const styles = StyleSheet.create({
 
   footerHint: { alignItems: 'center', marginTop: Spacing.xs },
   footerHintText: { fontSize: FontSize.xs, color: Colors.textMuted },
+  loadMore: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  loadMoreText: { fontSize: FontSize.md, fontWeight: '600', color: Colors.primary },
 
   empty: { alignItems: 'center', padding: Spacing.xl * 1.5, marginTop: Spacing.xl },
   emptyIconWrap: {

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -9,17 +10,16 @@ import {
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
 import { formatMoney } from '../../core/format';
-import { getCategoryBreakdownRange, getSeries, SeriesBucket } from '../../services/transactionService';
+import { getCategoryBreakdownRange, getCategories, getSeries, SeriesBucket } from '../../services/transactionService';
+import { Category } from '../../models';
 import { getBudgets, BudgetProgress } from '../../services/budgetService';
 import IncomeAllocationChart from '../../widgets/IncomeAllocationChart';
+import ExpenseLineChart from '../../widgets/ExpenseLineChart';
+import { useI18n } from '../../core/i18n';
 
 type PeriodKey = 'daily' | 'weekly' | 'monthly';
 
-const PERIODS: { key: PeriodKey; label: string }[] = [
-  { key: 'daily', label: 'Daily' },
-  { key: 'weekly', label: 'Weekly' },
-  { key: 'monthly', label: 'Monthly' },
-];
+const PERIODS: PeriodKey[] = ['daily', 'weekly', 'monthly'];
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -84,29 +84,41 @@ function periodWindow(period: PeriodKey): { bucket: SeriesBucket; keys: string[]
   return { bucket: 'month', keys, startDate: `${keys[0]}-01`, endDate: todayKey() };
 }
 
-function periodTitle(period: PeriodKey): string {
-  const now = new Date();
-  if (period === 'daily') {
-    return now.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
-  }
-  if (period === 'weekly') {
-    return `Week of ${mondayOf(now).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}`;
-  }
-  return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-}
-
 export default function DashboardScreen() {
+  const { t, locale } = useI18n();
+  const isFocused = useIsFocused();
   const [period, setPeriod] = useState<PeriodKey>('monthly');
   const [summary, setSummary] = useState({ income: 0, expenses: 0, netCashflow: 0, saved: 0, invested: 0 });
   const [expenseBreakdown, setExpenseBreakdown] = useState<Awaited<ReturnType<typeof getCategoryBreakdownRange>>>([]);
+  const [series, setSeries] = useState<Awaited<ReturnType<typeof getSeries>>>([]);
+  const [graphCats, setGraphCats] = useState<Category[]>([]);
+  const [catFilter, setCatFilter] = useState<string | null>(null);
   const [budgets, setBudgets] = useState<BudgetProgress[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  const periodTitle = (p: PeriodKey): string => {
+    const now = new Date();
+    if (p === 'daily') {
+      return now.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
+    }
+    if (p === 'weekly') {
+      return t('dash.week_of', {
+        date: mondayOf(now).toLocaleDateString(locale, { day: 'numeric', month: 'short' }),
+      });
+    }
+    return now.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+  };
 
   const loadData = async () => {
     try {
       const window = periodWindow(period);
-      const [rawSeries, breakdown, budgetData] = await Promise.all([
-        getSeries(window.bucket, window.startDate, window.endDate),
+      const base = getSeries(window.bucket, window.startDate, window.endDate);
+      const catTrend = catFilter
+        ? getSeries(window.bucket, window.startDate, window.endDate, catFilter)
+        : base;
+      const [rawSeries, trend, breakdown, budgetData] = await Promise.all([
+        base,
+        catTrend,
         getCategoryBreakdownRange(window.startDate, window.endDate, 'expense'),
         getBudgets(),
       ]);
@@ -128,6 +140,7 @@ export default function DashboardScreen() {
         saved: totals.saved,
         invested: totals.invested,
       });
+      setSeries(trend);
       setExpenseBreakdown(breakdown);
       setBudgets(budgetData.budgets);
     } catch (error) {
@@ -136,8 +149,14 @@ export default function DashboardScreen() {
   };
 
   useEffect(() => {
-    loadData();
-  }, [period]);
+    if (isFocused) loadData();
+  }, [period, catFilter, isFocused]);
+
+  useEffect(() => {
+    getCategories('expense')
+      .then(setGraphCats)
+      .catch((e) => console.error('Failed to load expense categories:', e));
+  }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -147,6 +166,10 @@ export default function DashboardScreen() {
 
   const overCount = budgets.filter((b) => b.over_budget).length;
   const warningCount = budgets.filter((b) => !b.over_budget && b.progress >= 0.8).length;
+
+  const window = periodWindow(period);
+  const byLabel = new Map(series.map((p) => [p.label, p.expense]));
+  const trendData = window.keys.map((k) => ({ x: k, value: byLabel.get(k) || 0 }));
 
   return (
     <ScrollView
@@ -159,22 +182,22 @@ export default function DashboardScreen() {
       </View>
 
       <View style={styles.periodRow}>
-        {PERIODS.map((p) => (
+        {PERIODS.map((key) => (
           <TouchableOpacity
-            key={p.key}
-            style={[styles.periodButton, period === p.key && styles.periodButtonActive]}
-            onPress={() => setPeriod(p.key)}
+            key={key}
+            style={[styles.periodButton, period === key && styles.periodButtonActive]}
+            onPress={() => setPeriod(key)}
             activeOpacity={0.7}
           >
-            <Text style={[styles.periodLabel, period === p.key && styles.periodLabelActive]}>
-              {p.label}
+            <Text style={[styles.periodLabel, period === key && styles.periodLabelActive]}>
+              {t(`dash.${key}`)}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>Net Cashflow</Text>
+        <Text style={styles.summaryLabel}>{t('dash.net_cashflow')}</Text>
         <Text
           style={[
             styles.summaryAmount,
@@ -187,13 +210,13 @@ export default function DashboardScreen() {
 
       <View style={styles.row}>
         <View style={[styles.summaryBox, { backgroundColor: '#ECFDF5' }]}>
-          <Text style={styles.boxLabel}>Income</Text>
+          <Text style={styles.boxLabel}>{t('dash.income')}</Text>
           <Text style={[styles.boxAmount, { color: Colors.income }]}>
             +{formatMoney(summary.income)}
           </Text>
         </View>
         <View style={[styles.summaryBox, { backgroundColor: '#FEF2F2' }]}>
-          <Text style={styles.boxLabel}>Expenses</Text>
+          <Text style={styles.boxLabel}>{t('dash.expenses')}</Text>
           <Text style={[styles.boxAmount, { color: Colors.expense }]}>
             -{formatMoney(summary.expenses)}
           </Text>
@@ -202,13 +225,13 @@ export default function DashboardScreen() {
 
       <View style={[styles.rollupRow, { marginTop: Spacing.md }]}>
         <View style={[styles.summaryBox, { backgroundColor: '#F3E8FF' }]}>
-          <Text style={styles.boxLabel}>Saved</Text>
+          <Text style={styles.boxLabel}>{t('dash.saved')}</Text>
           <Text style={[styles.boxAmount, { color: Colors.saving }]}>
             {formatMoney(summary.saved)}
           </Text>
         </View>
         <View style={[styles.summaryBox, { backgroundColor: '#FFF7ED' }]}>
-          <Text style={styles.boxLabel}>Invested</Text>
+          <Text style={styles.boxLabel}>{t('dash.invested')}</Text>
           <Text style={[styles.boxAmount, { color: Colors.investment }]}>
             {formatMoney(summary.invested)}
           </Text>
@@ -216,7 +239,62 @@ export default function DashboardScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Income Allocation</Text>
+        <Text style={styles.sectionTitle}>{t('dash.expense_trend')}</Text>
+        <View style={styles.chartCard}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.trendFilter}
+            contentContainerStyle={styles.trendFilterContent}
+          >
+            <TouchableOpacity
+              style={[styles.trendChip, catFilter === null && styles.trendChipActive]}
+              onPress={() => setCatFilter(null)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.trendChipText, catFilter === null && styles.trendChipTextActive]}>
+                {t('graph.all_categories')}
+              </Text>
+            </TouchableOpacity>
+            {graphCats.map((cat) => {
+              const active = catFilter === cat.id;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[
+                    styles.trendChip,
+                    styles.trendChipRow,
+                    active && styles.trendChipActive,
+                  ]}
+                  onPress={() => setCatFilter(active ? null : cat.id)}
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[
+                      styles.catDot,
+                      { backgroundColor: active ? '#FFFFFF' : cat.color || Colors.expense },
+                    ]}
+                  />
+                  <Text style={[styles.trendChipText, active && styles.trendChipTextActive]}>
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          <ExpenseLineChart
+            data={trendData}
+            color={
+              catFilter
+                ? graphCats.find((c) => c.id === catFilter)?.color || Colors.expense
+                : Colors.expense
+            }
+          />
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('dash.income_allocation')}</Text>
         <View style={styles.chartCard}>
           <IncomeAllocationChart
             income={summary.income}
@@ -232,13 +310,13 @@ export default function DashboardScreen() {
       {budgets.length > 0 && (
         <View style={styles.section}>
           <View style={styles.budgetStrip}>
-            <Text style={styles.budgetStripTitle}>Budgets</Text>
+            <Text style={styles.budgetStripTitle}>{t('dash.budgets')}</Text>
             <Text style={styles.budgetStripSub}>
               {overCount > 0
-                ? `${overCount} over budget · see Budgets`
+                ? t('dash.over_budget', { n: overCount })
                 : warningCount > 0
-                  ? `${warningCount} near limit · see Budgets`
-                  : "All on track"}
+                  ? t('dash.near_limit', { n: warningCount })
+                  : t('dash.all_on_track')}
             </Text>
           </View>
         </View>
@@ -348,6 +426,21 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
   },
+  trendFilter: { marginBottom: Spacing.md, flexGrow: 0 },
+  trendFilterContent: { gap: Spacing.sm, paddingRight: Spacing.lg },
+  trendChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  trendChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  trendChipText: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary },
+  trendChipTextActive: { color: '#FFFFFF' },
+  trendChipRow: { flexDirection: 'row', alignItems: 'center' },
+  catDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   budgetStrip: {
     flexDirection: 'row',
     justifyContent: 'space-between',

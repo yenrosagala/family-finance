@@ -3,6 +3,17 @@
 // exists (e.g. 1500.5 -> "1.500,50"). Accepts strings too — Postgres numeric
 // columns are often returned as strings, and coercing them avoids amounts
 // silently collapsing to zero.
+// Parses user-typed amount input in the same Indonesian convention formatMoney
+// outputs: dot as thousands separator, comma as decimal (e.g. "1.500,50" -> 1500.5).
+// Returns NaN when the text isn't a valid number.
+export function parseAmount(text: string): number {
+  if (!text) return NaN;
+  const normalized = text.trim().replace(/\./g, '').replace(',', '.');
+  if (!/\d/.test(normalized)) return NaN;
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 export function formatMoney(value: number | string | null | undefined): string {
   const n = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(n)) return '0';

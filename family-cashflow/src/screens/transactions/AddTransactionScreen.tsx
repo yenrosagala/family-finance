@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -10,13 +11,14 @@ import {
   Platform,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
-import { formatMoney } from '../../core/format';
-import { createTransaction, updateTransaction, getTransactions, getAccounts, getCategories } from '../../services/transactionService';
+import { formatMoney, parseAmount } from '../../core/format';
+import { createTransaction, updateTransaction, deleteTransaction, getTransactions, getAccounts, getCategories } from '../../services/transactionService';
 import { getBudgets, BudgetProgress } from '../../services/budgetService';
 import { getSavingGoals, SavingGoalProgress } from '../../services/savingGoalService';
 import { getInvestments, InvestmentProgress } from '../../services/investmentService';
 import { Account, Category } from '../../models';
-import { TRANSACTION_TYPES, TRANSACTION_TYPE_LABELS, TransactionType } from '../../constants/categories';
+import { TRANSACTION_TYPES, TransactionType } from '../../constants/categories';
+import { useI18n } from '../../core/i18n';
 
 type AddTransactionScreenProps = {
   navigation: any;
@@ -24,6 +26,8 @@ type AddTransactionScreenProps = {
 };
 
 export default function AddTransactionScreen({ navigation, route }: AddTransactionScreenProps) {
+  const { t } = useI18n();
+  const isFocused = useIsFocused();
   const editingId = route?.params?.transactionId as string | undefined;
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
@@ -44,21 +48,21 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
   const [initialLoading, setInitialLoading] = useState(Boolean(editingId));
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (isFocused) loadData();
+  }, [isFocused]);
 
   useEffect(() => {
-    if (editingId) {
+    if (editingId && isFocused) {
       loadTransaction(editingId);
     }
-  }, [editingId]);
+  }, [editingId, isFocused]);
 
   const loadTransaction = async (id: string) => {
     try {
       const all = await getTransactions();
       const tx = all.find((t) => t.id === id);
       if (!tx) {
-        Alert.alert('Error', 'Transaction not found');
+        Alert.alert(t('common.error'), t('add.not_found'));
         navigation.goBack();
         return;
       }
@@ -73,7 +77,7 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
       setInvestmentId(tx.investment_id);
       setToPerson(tx.to_person || '');
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert(t('common.error'), error.message);
     } finally {
       setInitialLoading(false);
     }
@@ -115,16 +119,31 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
   };
 
   const handleSave = async () => {
-    if (!amount || parseFloat(amount) <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
+    const num = parseAmount(amount);
+    if (!Number.isFinite(num) || num <= 0) {
+      Alert.alert(t('common.error'), t('add.err_amount'));
+      return;
+    }
+    const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || '');
+    if (!dateMatch) {
+      Alert.alert(t('common.error'), t('add.err_date'));
+      return;
+    }
+    const parsedDate = new Date(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]));
+    if (
+      parsedDate.getFullYear() !== Number(dateMatch[1]) ||
+      parsedDate.getMonth() !== Number(dateMatch[2]) - 1 ||
+      parsedDate.getDate() !== Number(dateMatch[3])
+    ) {
+      Alert.alert(t('common.error'), t('add.err_date'));
       return;
     }
     if (type === 'saving' && !savingGoalId) {
-      Alert.alert('Error', 'Choose a saving goal');
+      Alert.alert(t('common.error'), t('add.err_goal'));
       return;
     }
     if (type === 'investment' && !investmentId) {
-      Alert.alert('Error', 'Choose an investment');
+      Alert.alert(t('common.error'), t('add.err_investment'));
       return;
     }
 
@@ -132,7 +151,7 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
     try {
       const payload = {
         type,
-        amount: parseFloat(amount),
+        amount: num,
         txn_date: date,
         note: note || null,
         category_id: categoryId,
@@ -153,14 +172,53 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
         await createTransaction(payload);
       }
 
-      Alert.alert('Success', editingId ? 'Transaction updated!' : 'Transaction added!', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+      Alert.alert(t('common.success'), editingId ? t('add.success_updated') : t('add.success_added'), [
+        {
+          text: t('common.ok'),
+          onPress: () => {
+            if (editingId) {
+              navigation.goBack();
+            } else {
+              setAmount('');
+              setNote('');
+              setDate(new Date().toISOString().split('T')[0]);
+              setCategoryId(null);
+              setSavingGoalId(null);
+              setInvestmentId(null);
+              setToPerson('');
+            }
+          },
+        },
       ]);
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert(t('common.error'), error.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const confirmDelete = () => {
+    if (!editingId) return;
+    Alert.alert(t('add.delete_title'), t('add.delete_confirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.delete'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setLoading(true);
+            await deleteTransaction(editingId);
+            Alert.alert(t('common.success'), t('add.success_deleted'), [
+              { text: t('common.ok'), onPress: () => navigation.goBack() },
+            ]);
+          } catch (error: any) {
+            Alert.alert(t('common.error'), error.message);
+          } finally {
+            setLoading(false);
+          }
+        },
+      },
+    ]);
   };
 
   const showFromAccount = ['expense', 'transfer', 'transfer_out', 'investment', 'saving'].includes(type);
@@ -177,18 +235,18 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{editingId ? 'Edit Transaction' : 'Add Transaction'}</Text>
+        <Text style={styles.title}>{editingId ? t('add.edit_title') : t('add.title')}</Text>
       </View>
 
       <View style={styles.typeSelector}>
-        {TRANSACTION_TYPES.map((t) => (
+        {TRANSACTION_TYPES.map((tr) => (
           <TouchableOpacity
-            key={t}
-            style={[styles.typeButton, type === t && styles.typeButtonActive]}
-            onPress={() => setType(t)}
+            key={tr}
+            style={[styles.typeButton, type === tr && styles.typeButtonActive]}
+            onPress={() => setType(tr)}
           >
-            <Text style={[styles.typeButtonText, type === t && styles.typeButtonTextActive]}>
-              {TRANSACTION_TYPE_LABELS[t]}
+            <Text style={[styles.typeButtonText, type === tr && styles.typeButtonTextActive]}>
+              {t(`type.${tr}`)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -206,7 +264,7 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
 
         <TextInput
           style={styles.input}
-          placeholder="Note (optional)"
+          placeholder={t('add.note_placeholder')}
           placeholderTextColor={Colors.textMuted}
           value={note}
           onChangeText={setNote}
@@ -214,7 +272,7 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
 
         <TextInput
           style={styles.input}
-          placeholder="Date (YYYY-MM-DD)"
+          placeholder="YYYY-MM-DD"
           placeholderTextColor={Colors.textMuted}
           value={date}
           onChangeText={setDate}
@@ -222,7 +280,7 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
 
         {showFromAccount && (
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>From Account</Text>
+            <Text style={styles.label}>{t('add.from_account')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {accounts.map((account) => (
                 <TouchableOpacity
@@ -241,7 +299,7 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
 
         {showToAccount && (
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>To Account</Text>
+            <Text style={styles.label}>{t('add.to_account')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {accounts.map((account) => (
                 <TouchableOpacity
@@ -260,7 +318,7 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
 
         {showCategory && (
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Category</Text>
+            <Text style={styles.label}>{t('add.category')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {categories.map((category) => (
                 <TouchableOpacity
@@ -286,22 +344,25 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
           >
             <Text style={[styles.budgetHintText, { color: activeBudget.over_budget ? Colors.expense : Colors.textSecondary }]}>
               {activeBudget.over_budget
-                ? `Already over your ${activeBudget.category_name} budget by ${formatMoney(
-                    activeBudget.spent - activeBudget.monthly_limit
-                  )} this month`
-                : `Budget: ${formatMoney(activeBudget.spent)} of ${formatMoney(activeBudget.monthly_limit)} used (${Math.round(
-                    activeBudget.progress * 100
-                  )}%)`}
+                ? t('add.budget_over', {
+                    cat: activeBudget.category_name ?? '',
+                    amt: formatMoney(activeBudget.spent - activeBudget.monthly_limit),
+                  })
+                : t('add.budget_used', {
+                    spent: formatMoney(activeBudget.spent),
+                    limit: formatMoney(activeBudget.monthly_limit),
+                    pct: Math.round(activeBudget.progress * 100),
+                  })}
             </Text>
           </View>
         )}
 
         {showSavingGoal && (
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Saving Goal</Text>
+            <Text style={styles.label}>{t('add.saving_goal')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {savingGoals.length === 0 ? (
-                <Text style={styles.mutedHint}>No saving goals yet. Add one under More → Saving Goals.</Text>
+                <Text style={styles.mutedHint}>{t('add.no_saving_goals')}</Text>
               ) : (
                 savingGoals.map((goal) => (
                   <TouchableOpacity
@@ -321,10 +382,10 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
 
         {showInvestment && (
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Investment</Text>
+            <Text style={styles.label}>{t('add.investment')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {investments.length === 0 ? (
-                <Text style={styles.mutedHint}>No investments yet. Add one under More → Investments.</Text>
+                <Text style={styles.mutedHint}>{t('add.no_investments')}</Text>
               ) : (
                 investments.map((inv) => (
                   <TouchableOpacity
@@ -345,7 +406,7 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
         {showToPerson && (
           <TextInput
             style={styles.input}
-            placeholder={type === 'transfer_out' ? 'To person (e.g. Mom)' : 'From person (e.g. Dad)'}
+            placeholder={type === 'transfer_out' ? t('add.to_person_out') : t('add.from_person_in')}
             placeholderTextColor={Colors.textMuted}
             value={toPerson}
             onChangeText={setToPerson}
@@ -359,14 +420,24 @@ export default function AddTransactionScreen({ navigation, route }: AddTransacti
         >
           <Text style={styles.saveButtonText}>
             {loading
-              ? 'Saving...'
+              ? t('common.saving')
               : initialLoading
-                ? 'Loading...'
+                ? t('common.loading')
                 : editingId
-                  ? 'Save Changes'
-                  : 'Save Transaction'}
+                  ? t('add.save_changes')
+                  : t('add.save_transaction')}
           </Text>
         </TouchableOpacity>
+
+        {editingId && (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={confirmDelete}
+            disabled={loading || initialLoading}
+          >
+            <Text style={styles.deleteButtonText}>{t('add.delete_transaction')}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </ScrollView>
   );
@@ -470,6 +541,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: Spacing.md,
   },
+  deleteButton: {
+    backgroundColor: Colors.danger,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+  },
+  deleteButtonText: { color: Colors.surface, fontWeight: '600', fontSize: FontSize.md },
   budgetHint: {
     backgroundColor: Colors.surface,
     borderWidth: 1,

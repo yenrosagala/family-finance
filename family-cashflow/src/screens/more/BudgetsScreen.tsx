@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -11,21 +12,24 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
-import { formatMoney } from '../../core/format';
+import { formatMoney, parseAmount } from '../../core/format';
 import { getBudgets, createBudget, updateBudget, deleteBudget, BudgetProgress } from '../../services/budgetService';
 import { getCategories } from '../../services/transactionService';
 import { Category } from '../../models';
+import { useI18n } from '../../core/i18n';
 
 function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function monthLabel(key: string): string {
+function monthLabel(key: string, locale = 'en-US'): string {
   const [y, m] = key.split('-').map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return new Date(y, m - 1, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
 }
 
 export default function BudgetsScreen() {
+  const isFocused = useIsFocused();
+  const { t, locale } = useI18n();
   const [month, setMonth] = useState<string>(monthKey(new Date()));
   const [budgets, setBudgets] = useState<BudgetProgress[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -44,13 +48,13 @@ export default function BudgetsScreen() {
       const data = await getBudgets(month);
       setBudgets(data.budgets);
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     }
   }, [month]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (isFocused) load();
+  }, [load, isFocused]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -66,7 +70,7 @@ export default function BudgetsScreen() {
     try {
       setCategories((await getCategories('expense')).filter((c) => !budgets.some((b) => b.category_id === c.id)));
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     }
     setModalVisible(true);
   };
@@ -80,9 +84,9 @@ export default function BudgetsScreen() {
   };
 
   const handleSave = async () => {
-    const limit = Number(limitText);
-    if (!selectedCategoryId || !limit || limit <= 0) {
-      Alert.alert('Error', 'Choose a category and enter a valid amount');
+    const limit = parseAmount(limitText);
+    if (!selectedCategoryId || !Number.isFinite(limit) || limit <= 0) {
+      Alert.alert(t('common.error'), t('budgets.err_choose'));
       return;
     }
     setSaving(true);
@@ -95,24 +99,24 @@ export default function BudgetsScreen() {
       setModalVisible(false);
       await load();
     } catch (e) {
-      Alert.alert('Error', (e as Error).message);
+      Alert.alert(t('common.error'), (e as Error).message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = (b: BudgetProgress) => {
-    Alert.alert('Delete budget', `Remove budget for ${b.category_name}?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('budgets.delete_title'), t('budgets.delete_msg', { cat: b.category_name ?? '' }), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deleteBudget(b.id);
             await load();
           } catch (e) {
-            Alert.alert('Error', (e as Error).message);
+            Alert.alert(t('common.error'), (e as Error).message);
           }
         },
       },
@@ -135,10 +139,12 @@ export default function BudgetsScreen() {
         </View>
         <View style={styles.rowFooter}>
           <Text style={[styles.rowStatus, { color: item.over_budget ? Colors.expense : Colors.textSecondary }]}>
-            {item.over_budget ? `Over by ${formatMoney(item.spent - item.monthly_limit)} (${pct}%)` : `${pct}% used, ${formatMoney(item.remaining)} left`}
+            {item.over_budget
+              ? t('budgets.over_by', { amt: formatMoney(item.spent - item.monthly_limit), pct })
+              : t('budgets.used_left', { pct, amt: formatMoney(item.remaining) })}
           </Text>
           <Text style={[styles.rowBadge, item.is_recurring ? styles.recurringBadge : styles.monthBadge]}>
-            {item.is_recurring ? 'Recurring' : 'One-off'}
+            {item.is_recurring ? t('budgets.recurring') : t('budgets.one_off')}
           </Text>
         </View>
       </TouchableOpacity>
@@ -154,7 +160,7 @@ export default function BudgetsScreen() {
         })}>
           <Text style={styles.monthNav}>‹</Text>
         </TouchableOpacity>
-        <Text style={styles.monthText}>{monthLabel(month)}</Text>
+        <Text style={styles.monthText}>{monthLabel(month, locale)}</Text>
         <TouchableOpacity onPress={() => setMonth((m) => {
           const [y, mo] = m.split('-').map(Number);
           return monthKey(new Date(y, mo, 1));
@@ -169,12 +175,12 @@ export default function BudgetsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
           budgets.length === 0 ? (
-            <Text style={styles.empty}>No budgets for {monthLabel(month)}. Add one to track spending.</Text>
+            <Text style={styles.empty}>{t('budgets.no_budgets', { month: monthLabel(month, locale) })}</Text>
           ) : null
         }
         ListFooterComponent={
           <TouchableOpacity style={styles.addButton} onPress={openAdd}>
-            <Text style={styles.addButtonText}>+ New Budget</Text>
+            <Text style={styles.addButtonText}>+ {t('budgets.new_budget')}</Text>
           </TouchableOpacity>
         }
         renderItem={renderItem}
@@ -184,7 +190,7 @@ export default function BudgetsScreen() {
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
-            <Text style={styles.modalTitle}>{editing ? 'Edit Budget' : 'New Budget'}</Text>
+            <Text style={styles.modalTitle}>{editing ? t('budgets.edit_budget') : t('budgets.new_budget')}</Text>
             {!editing && (
               <FlatList
                 data={categories}
@@ -203,7 +209,7 @@ export default function BudgetsScreen() {
             )}
             <TextInput
               style={styles.input}
-              placeholder="Monthly limit (e.g. 1500000)"
+              placeholder={t('budgets.limit_placeholder')}
               placeholderTextColor={Colors.textMuted}
               keyboardType="numeric"
               value={limitText}
@@ -211,18 +217,18 @@ export default function BudgetsScreen() {
             />
             <View style={styles.chipRow}>
               <TouchableOpacity style={[styles.chip, isRecurring && styles.chipActive]} onPress={() => setIsRecurring(true)}>
-                <Text style={[styles.chipText, isRecurring && styles.chipTextActive]}>Every month</Text>
+                <Text style={[styles.chipText, isRecurring && styles.chipTextActive]}>{t('budgets.every_month')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.chip, !isRecurring && styles.chipActive]} onPress={() => setIsRecurring(false)}>
-                <Text style={[styles.chipText, !isRecurring && styles.chipTextActive]}>This month only</Text>
+                <Text style={[styles.chipText, !isRecurring && styles.chipTextActive]}>{t('budgets.this_month')}</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-                <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save'}</Text>
+                <Text style={styles.saveText}>{saving ? t('common.saving') : t('common.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>

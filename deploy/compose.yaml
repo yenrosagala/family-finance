@@ -1,5 +1,5 @@
 # Local run: docker compose up --build
-# Reads secrets from api/.env (DATABASE_URL, JWT_SECRET).
+# Reads secrets from api/.env (MASTER_DATABASE_URL, JWT_SECRET).
 services:
   api:
     build:

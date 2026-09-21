@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "FamFin Family Finance Management",
+    "name": "Family Finance",
     "slug": "famfin-family-finance",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,6 +13,7 @@
       }
     },
     "android": {
+      "package": "com.famfin.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -30,7 +31,14 @@
     "plugins": [
       "expo-status-bar",
       "expo-font",
-      "expo-sqlite"
-    ]
+      "expo-sqlite",
+      "expo-sharing"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5c1eebd1-62f1-41bf-9be7-388c1c212012"
+      }
+    },
+    "owner": "yenrosagala"
   }
 }

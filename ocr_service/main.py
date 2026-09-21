@@ -269,5 +269,11 @@ def ocr(req: OcrRequest) -> OcrResponse:
 if __name__ == "__main__":
     import uvicorn
 
-    log.info("Starting PaddleOCR-VL service on 127.0.0.1:%s", PORT)
-    uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="warning")
+    # 0.0.0.0 so the service is reachable from outside its own container/host
+    # (127.0.0.1 only accepts connections from inside the same network
+    # namespace — fine for the original same-machine dev setup, but silently
+    # unreachable once this runs as its own Docker service that the API
+    # container talks to over OCR_SERVICE_URL).
+    host = os.environ.get("OCR_HOST", "0.0.0.0")
+    log.info("Starting PaddleOCR-VL service on %s:%s", host, PORT)
+    uvicorn.run(app, host=host, port=PORT, log_level="warning")

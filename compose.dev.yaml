@@ -1,0 +1,54 @@
+# Full local dev stack: API + OCR microservice together.
+# Run:  docker compose -f compose.dev.yaml up --build
+#
+# This is separate from deploy/compose.yaml, which intentionally builds only
+# the API (deploy/ is a self-contained unit for deploying the API alone —
+# see deploy/README.md). Use this file for local development when you also
+# want to test receipt scanning; use deploy/compose.yaml or deploy/render.yaml
+# to deploy just the API, and deploy the OCR service separately (see
+# ocr_service/Dockerfile) — it needs meaningfully more CPU/RAM than a
+# free-tier API host provides.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: famfin
+      POSTGRES_PASSWORD: famfin
+      POSTGRES_DB: famfin
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # master-schema.sql runs once on first boot -> app_users + households_registry
+      - ./deploy/api/src/db/master-schema.sql:/docker-entrypoint-initdb.d/01-master-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U famfin -d famfin"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ./deploy
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    env_file:
+      - api/.env
+    environment:
+      - OCR_SERVICE_URL=http://ocr:8008
+    depends_on:
+      db:
+        condition: service_healthy
+      ocr:
+        condition: service_started
+
+  ocr:
+    build:
+      context: ./ocr_service
+    ports:
+      - "8008:8008"
+
+volumes:
+  db-data:

@@ -4,6 +4,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { Colors, FontSize, Spacing } from '../core/theme';
 import { formatMoney } from '../core/format';
 import { CategoryBreakdownItem } from '../services/transactionService';
+import { useI18n } from '../core/i18n';
 
 const SIZE = 140;
 const STROKE = 22;
@@ -17,6 +18,7 @@ type Props = {
 };
 
 export default function CategoryDonut({ data, total, label }: Props) {
+  const { t } = useI18n();
   const segments = data.filter((d) => d.total > 0);
   const safeTotal = total > 0 ? total : 1;
 
@@ -63,7 +65,7 @@ export default function CategoryDonut({ data, total, label }: Props) {
         </View>
       </View>
       {segments.length === 0 ? (
-        <Text style={styles.empty}>No {label.toLowerCase()} this month</Text>
+        <Text style={styles.empty}>{t('donut.no_min_data', { label: label.toLowerCase() })}</Text>
       ) : (
         <View style={styles.legend}>
           {segments.slice(0, 6).map((seg) => (
@@ -74,7 +76,7 @@ export default function CategoryDonut({ data, total, label }: Props) {
             </View>
           ))}
           {segments.length > 6 && (
-            <Text style={styles.more}>+{segments.length - 6} more</Text>
+            <Text style={styles.more}>{t('donut.more', { n: segments.length - 6 })}</Text>
           )}
         </View>
       )}

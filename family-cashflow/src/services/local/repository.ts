@@ -238,6 +238,22 @@ export async function localJoinHousehold(): Promise<never> {
   throw localUnavailable('Joining a household');
 }
 
+export async function localRefreshInviteCode(): Promise<string> {
+  const userId = await currentSessionUserId();
+  if (!userId) throw new Error('You are not signed in');
+  const house = await localGetUserHousehold();
+  if (!house) throw new Error('You are not in a household yet');
+  const db = await getLocalDb();
+  const row = await db.getFirstAsync<{ role: string }>(
+    `select role from household_members where household_id = ? and user_id = ?`,
+    [house.id, userId]
+  );
+  if (!row || row.role !== 'admin') throw new Error('Only admin can refresh the invite code');
+  const code = newId().replace(/-/g, '').slice(0, 6).toUpperCase();
+  await db.runAsync(`update households set invite_code = ? where id = ?`, [code, house.id]);
+  return code;
+}
+
 export async function localGetHouseholdMembers(): Promise<HouseholdMember[]> {
   const db = await getLocalDb();
   const user = await localGetCurrentUser();
@@ -398,6 +414,7 @@ async function applyBalanceDelta(
 
 export async function localGetTransactions(options?: {
   limit?: number;
+  offset?: number;
   startDate?: string;
   endDate?: string;
   type?: string;
@@ -427,6 +444,10 @@ export async function localGetTransactions(options?: {
   if (options?.limit && options.limit > 0) {
     params.push(options.limit);
     sql += ` limit ?`;
+  }
+  if (options?.offset && options.offset > 0) {
+    params.push(options.offset);
+    sql += ` offset ?`;
   }
   return db.getAllAsync<Transaction>(sql, params);
 }
@@ -642,7 +663,8 @@ export async function localGetCategoryBreakdownRange(
 export async function localGetSeries(
   bucket: 'day' | 'week' | 'month',
   startDate: string,
-  endDate: string
+  endDate: string,
+  categoryId?: string
 ): Promise<{ label: string; income: number; expense: number; saved: number; invested: number }[]> {
   const householdId = await localHouseholdId();
   const db = await getLocalDb();
@@ -660,9 +682,10 @@ export async function localGetSeries(
        coalesce(sum(case when type = 'investment' then amount end), 0) as invested
      from transactions
      where household_id = ? and date(txn_date) >= ? and date(txn_date) <= ?
+       and (? is null or category_id = ?)
      group by ${keyExpr}
      order by ${keyExpr}`,
-    [householdId, startDate, endDate]
+    [householdId, startDate, endDate, categoryId ?? null, categoryId ?? null]
   );
   return rows.map((r) => ({
     label: r.label,

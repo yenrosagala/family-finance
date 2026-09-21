@@ -9,7 +9,7 @@ services:
     rootDir: deploy
     healthCheckPath: /health
     envVars:
-      - key: DATABASE_URL
-        sync: false  # set in Render dashboard: a Postgres URL the API can write to
+      - key: MASTER_DATABASE_URL
+        sync: false  # set in Render dashboard: URL of the master Postgres project (see api/src/db/master-schema.sql)
       - key: JWT_SECRET
         sync: false  # set in Render dashboard: same value as api/.env

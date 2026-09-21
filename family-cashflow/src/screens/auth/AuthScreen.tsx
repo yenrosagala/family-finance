@@ -9,21 +9,27 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../core/theme';
 import { signIn, signUp } from '../../services/authService';
-import { DataSource, getDataSource, setDataSource, LOCAL_MODE_UNAVAILABLE_MSG } from '../../core/dataSource';
+import { DataSource, getDataSource, setDataSource } from '../../core/dataSource';
+import { useI18n } from '../../core/i18n';
 
 type AuthScreenProps = {
   onAuthSuccess: () => void;
 };
 
 export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
+  const { t } = useI18n();
   const [isSignUp, setIsSignUp] = useState(false);
   const [mode, setMode] = useState<DataSource>('cloud');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [householdMode, setHouseholdMode] = useState<'create' | 'join'>('create');
+  const [householdName, setHouseholdName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -36,7 +42,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
   const chooseMode = async (next: DataSource) => {
     if (next === 'local' && Platform.OS === 'web') {
-      Alert.alert('Local mode unavailable', LOCAL_MODE_UNAVAILABLE_MSG);
+      Alert.alert(t('auth.local_mode_unavailable'), t('auth.local_mode_msg'));
       return;
     }
     setMode(next);
@@ -45,20 +51,34 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
   const handleAuth = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(t('common.error'), t('auth.fill_fields'));
       return;
+    }
+    if (isSignUp && mode === 'cloud') {
+      if (householdMode === 'create' && !householdName.trim()) {
+        Alert.alert(t('common.error'), t('auth.household_name_error'));
+        return;
+      }
+      if (householdMode === 'join' && !inviteCode.trim()) {
+        Alert.alert(t('common.error'), t('auth.invite_code_error'));
+        return;
+      }
     }
 
     setLoading(true);
     try {
       if (isSignUp) {
-        await signUp(email, password, displayName || email.split('@')[0]);
+        const household: Parameters<typeof signUp>[3] =
+          mode === 'cloud' && householdMode === 'join'
+            ? { mode: 'join', inviteCode: inviteCode.trim().toUpperCase() }
+            : { mode: 'create', householdName: householdName.trim() };
+        await signUp(email, password, displayName || email.split('@')[0], household);
       } else {
         await signIn(email, password);
       }
       onAuthSuccess();
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert(t('common.error'), error.message);
     } finally {
       setLoading(false);
     }
@@ -71,13 +91,14 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>FamFin</Text>
+          <Image source={require('../../../assets/FamFin Logo.png')} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.title}>{'Family Finance\nManagement'}</Text>
           <Text style={styles.subtitle}>
-            {isSignUp ? 'Create an account' : 'Sign in to your account'}
+            {isSignUp ? t('auth.subtitle_create') : t('auth.subtitle_login')}
           </Text>
         </View>
 
-        <Text style={styles.modeLabel}>Where should your data live?</Text>
+        <Text style={styles.modeLabel}>{t('auth.data_live')}</Text>
         <View style={styles.modeRow}>
           <TouchableOpacity
             style={[styles.modeCard, mode === 'cloud' && styles.modeCardActive]}
@@ -88,13 +109,13 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               {'\u2601\uFE0F'}
             </Text>
             <Text style={[styles.modeTitle, mode === 'cloud' && styles.modeTitleActive]}>
-              Cloud
+              {t('auth.cloud')}
             </Text>
             <Text style={[styles.modeDesc, mode === 'cloud' && styles.modeDescActive]}>
-              Shared securely with your household. Requires internet.
+              {t('auth.cloud_desc')}
             </Text>
             <Text style={[styles.modeChip, mode === 'cloud' && styles.modeChipActive]}>
-              {mode === 'cloud' ? 'Selected' : 'Select'}
+              {mode === 'cloud' ? t('auth.selected') : t('auth.select')}
             </Text>
           </TouchableOpacity>
 
@@ -111,22 +132,20 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               {'\uD83D\uDCF1'}
             </Text>
             <Text style={[styles.modeTitle, mode === 'local' && styles.modeTitleActive]}>
-              Local
+              {t('auth.local')}
             </Text>
             <Text style={[styles.modeDesc, mode === 'local' && styles.modeDescActive]}>
-              Stored only on this phone. Use on the mobile app only.
+              {t('auth.local_desc')}
             </Text>
             <Text style={[styles.modeChip, mode === 'local' && styles.modeChipActive]}>
-              {mode === 'local' ? 'Selected' : 'Select'}
+              {mode === 'local' ? t('auth.selected') : t('auth.select')}
             </Text>
           </TouchableOpacity>
         </View>
 
         {mode === 'local' && (
           <View style={styles.localNote}>
-            <Text style={styles.localNoteText}>
-              {'Local mode keeps all data on this device — no account sharing across devices. Register with a fresh email to start your local household.\n\nEvery new local household is auto-populated with 3 months of dummy data. Quick demo login: demo@local.family / demo1234'}
-            </Text>
+            <Text style={styles.localNoteText}>{t('auth.local_note')}</Text>
           </View>
         )}
 
@@ -134,7 +153,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           {isSignUp && (
             <TextInput
               style={styles.input}
-              placeholder="Display Name"
+              placeholder={t('auth.display_name')}
               placeholderTextColor={Colors.textMuted}
               value={displayName}
               onChangeText={setDisplayName}
@@ -144,7 +163,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
           <TextInput
             style={styles.input}
-            placeholder="Email"
+            placeholder={t('auth.email')}
             placeholderTextColor={Colors.textMuted}
             value={email}
             onChangeText={setEmail}
@@ -154,12 +173,54 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
           <TextInput
             style={styles.input}
-            placeholder="Password"
+            placeholder={t('auth.password')}
             placeholderTextColor={Colors.textMuted}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
           />
+
+          {isSignUp && mode === 'cloud' && (
+            <>
+              <View style={styles.modeSelector}>
+                <TouchableOpacity
+                  style={[styles.modeButton, householdMode === 'create' && styles.modeButtonActive]}
+                  onPress={() => setHouseholdMode('create')}
+                >
+                  <Text style={[styles.modeButtonText, householdMode === 'create' && styles.modeButtonTextActive]}>
+                    {t('auth.create_household')}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modeButton, householdMode === 'join' && styles.modeButtonActive]}
+                  onPress={() => setHouseholdMode('join')}
+                >
+                  <Text style={[styles.modeButtonText, householdMode === 'join' && styles.modeButtonTextActive]}>
+                    {t('auth.join_household')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {householdMode === 'create' ? (
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('auth.household_placeholder')}
+                  placeholderTextColor={Colors.textMuted}
+                  value={householdName}
+                  onChangeText={setHouseholdName}
+                />
+              ) : (
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('auth.invite_placeholder')}
+                  placeholderTextColor={Colors.textMuted}
+                  value={inviteCode}
+                  onChangeText={setInviteCode}
+                  autoCapitalize="characters"
+                />
+              )}
+            </>
+          )}
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -167,7 +228,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             disabled={loading}
           >
             <Text style={styles.buttonText}>
-              {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
+              {loading ? t('common.loading') : isSignUp ? t('auth.sign_up') : t('auth.sign_in')}
             </Text>
           </TouchableOpacity>
 
@@ -176,9 +237,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             onPress={() => setIsSignUp(!isSignUp)}
           >
             <Text style={styles.switchText}>
-              {isSignUp
-                ? 'Already have an account? Sign In'
-                : "Don't have an account? Sign Up"}
+              {isSignUp ? t('auth.have_account') : t('auth.no_account')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -205,6 +264,11 @@ const styles = StyleSheet.create({
     fontSize: FontSize.title,
     fontWeight: 'bold',
     color: Colors.primary,
+    marginBottom: Spacing.sm,
+  },
+  logo: {
+    width: 112,
+    height: 112,
     marginBottom: Spacing.sm,
   },
   subtitle: {
@@ -294,6 +358,31 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: Spacing.md,
+  },
+  modeSelector: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  modeButton: {
+    flex: 1,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  modeButtonActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  modeButtonText: {
+    color: Colors.text,
+    fontSize: FontSize.sm,
+    fontWeight: '500',
+  },
+  modeButtonTextActive: {
+    color: Colors.surface,
   },
   input: {
     backgroundColor: Colors.surface,
